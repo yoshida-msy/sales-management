@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>新規受注登録</h1>
+
+<section class="form-section">
+    <form method="POST">
+        <div class="form-group">
+            <label for="product_id">商品を選択</label>
+            <select name="product_id" id="product_id" required>
+                <option value="">-- 商品を選んでください --</option>
+                {% for product in products %}
+                <option value="{{ product.id }}">
+                    {{ product.name }} (単価: {{ product.price }}円 / 在庫: {{ product.stock }})
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="quantity">数量</label>
+            <input type="number" name="quantity" id="quantity" required min="1" value="1">
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">受注を確定する</button>
+            <a href="{{ url_for('orders') }}" class="btn-secondary">戻る</a>
+        </div>
+    </form>
+</section>
+
+<div class="info-box">
+    <p>※ 受注を確定すると、商品の在庫数が自動的に減算されます。</p>
+    <p>※ 合計金額は単価 × 数量で自動計算されます。</p>
+</div>
+{% endblock %}

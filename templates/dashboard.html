@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>ダッシュボード</h1>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <h3>総売上</h3>
+        <p class="stat-value">{{ "{:,}".format(total_sales) }} 円</p>
+    </div>
+    <div class="stat-card">
+        <h3>総受注件数</h3>
+        <p class="stat-value">{{ order_count }} 件</p>
+    </div>
+</div>
+
+<section>
+    <h2>最近の受注（最新5件）</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>日付</th>
+                <th>商品名</th>
+                <th>数量</th>
+                <th>合計金額</th>
+                <th>ステータス</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in recent_orders %}
+            <tr>
+                <td>{{ order.order_date }}</td>
+                <td>{{ order.product_name }}</td>
+                <td>{{ order.quantity }}</td>
+                <td>{{ "{:,}".format(order.total_price) }} 円</td>
+                <td><span class="badge status-{{ order.status }}">{{ order.status }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

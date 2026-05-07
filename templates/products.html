@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>商品管理</h1>
+
+<section class="form-section">
+    <h2>新規商品登録</h2>
+    <form method="POST">
+        <div class="form-group">
+            <label for="name">商品名</label>
+            <input type="text" name="name" id="name" required placeholder="例: キーボード">
+        </div>
+        <div class="form-group">
+            <label for="price">単価 (円)</label>
+            <input type="number" name="price" id="price" required min="0">
+        </div>
+        <div class="form-group">
+            <label for="stock">初期在庫数</label>
+            <input type="number" name="stock" id="stock" required min="0">
+        </div>
+        <button type="submit" class="btn-primary">登録する</button>
+    </form>
+</section>
+
+<section>
+    <h2>商品一覧・在庫状況</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>商品名</th>
+                <th>単価</th>
+                <th>在庫数</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for product in products %}
+            <tr>
+                <td>{{ product.id }}</td>
+                <td>{{ product.name }}</td>
+                <td>{{ "{:,}".format(product.price) }} 円</td>
+                <td class="{{ 'text-danger' if product.stock < 5 else '' }}">
+                    {{ product.stock }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}
