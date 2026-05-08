@@ -8,39 +8,42 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
+# セッションの暗号化に必要なシークレットキー
 app.secret_key = "full-auth-secure-key"
 
-# --- ログイン管理の設定 ---
+# --- ログイン管理 (Flask-Login) の設定 ---
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = "login" # 未ログイン時に飛ばすページ
+login_manager.login_view = "login" # ログインしていない場合にリダイレクトするページ
 
 DATABASE = "database.db"
 
-# データベース接続
+# データベースに接続するための関数
 def get_db():
     conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
+    conn.row_factory = sqlite3.Row # カラム名でデータにアクセスできるようにする
     return conn
 
-# ユーザーモデル (Flask-Login用)
+# Flask-Loginが使用するユーザーオブジェクトの定義
 class User(UserMixin):
     def __init__(self, id, username):
         self.id = id
         self.username = username
 
+# セッションからユーザー情報を読み込む関数
 @login_manager.user_loader
 def load_user(user_id):
     with get_db() as conn:
-        user = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        # user_idは文字列で渡されるためキャストして検索
+        user = conn.execute("SELECT * FROM users WHERE id = ?", (int(user_id),)).fetchone()
         if user:
             return User(user["id"], user["username"])
     return None
 
-# --- データベース初期化 ---
+# --- データベースの初期設定 (テーブル作成 & 初期データ) ---
 def init_db():
     with get_db() as conn:
-        # ユーザーテーブル (パスワードはハッシュ化して保存)
+        # ユーザーテーブル
         conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -49,29 +52,41 @@ def init_db():
             )
         """)
         # 商品テーブル
-        conn.execute("CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, price INTEGER NOT NULL, stock INTEGER NOT NULL)")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS products (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                name TEXT NOT NULL, 
+                price INTEGER NOT NULL, 
+                stock INTEGER NOT NULL
+            )
+        """)
         # 受注テーブル
         conn.execute("""
             CREATE TABLE IF NOT EXISTS orders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER NOT NULL,
-                quantity INTEGER NOT NULL, total_price INTEGER NOT NULL,
-                status TEXT NOT NULL, order_date DATETIME NOT NULL,
+                id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                product_id INTEGER NOT NULL,
+                quantity INTEGER NOT NULL, 
+                total_price INTEGER NOT NULL,
+                status TEXT NOT NULL, 
+                order_date DATETIME NOT NULL,
                 FOREIGN KEY (product_id) REFERENCES products (id)
             )
         """)
         conn.commit()
+        print("Database tables initialized.")
 
+# アプリ起動時に必ず実行
 init_db()
 
-# --- 認証ルート ---
+# --- 認証（ログイン・登録）のルート ---
 
-# 1. 新規ユーザー登録
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
         
+        # パスワードを安全にハッシュ化
         hashed_password = generate_password_hash(password)
         
         try:
@@ -85,7 +100,6 @@ def register():
             
     return render_template("register.html")
 
-# 2. ログイン
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -93,42 +107,53 @@ def login():
         password = request.form["password"]
         with get_db() as conn:
             user = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+            # パスワードの照合
             if user and check_password_hash(user["password"], password):
-                login_user(User(user["id"], user["username"]))
+                user_obj = User(user["id"], user["username"])
+                login_user(user_obj) # ログイン状態にする
                 return redirect(url_for("index"))
         flash("ユーザー名またはパスワードが正しくありません")
     return render_template("login.html")
 
-# 3. ログアウト
 @app.route("/logout")
 @login_required
 def logout():
-    logout_user()
+    logout_user() # ログアウト処理
     flash("ログアウトしました")
     return redirect(url_for("login"))
 
-# --- 管理機能 (ログイン必須) ---
+# --- メイン機能（受注・在庫管理）のルート ---
 
 @app.route("/")
-@login_required
+@login_required # ログインしていないとアクセス不可
 def index():
     with get_db() as conn:
-        # KPIデータ
+        # ダッシュボード用集計
         total_sales = conn.execute("SELECT SUM(total_price) FROM orders WHERE status != 'キャンセル'").fetchone()[0] or 0
         today_sales = conn.execute("SELECT SUM(total_price) FROM orders WHERE date(order_date) = date('now') AND status != 'キャンセル'").fetchone()[0] or 0
         uninvoiced = conn.execute("SELECT COUNT(*) FROM orders WHERE status = '未請求'").fetchone()[0] or 0
         low_stock = conn.execute("SELECT COUNT(*) FROM products WHERE stock < 5").fetchone()[0] or 0
         
-        # グラフ用データ
-        monthly = conn.execute("SELECT strftime('%Y-%m', order_date) as m, SUM(total_price) as s FROM orders GROUP BY m ORDER BY m DESC LIMIT 6").fetchall()
+        # グラフ用：月別売上推移
+        monthly = conn.execute("""
+            SELECT strftime('%Y-%m', order_date) as m, SUM(total_price) as s 
+            FROM orders GROUP BY m ORDER BY m DESC LIMIT 6
+        """).fetchall()
         m_labels = [r["m"] for r in reversed(monthly)]
         m_values = [r["s"] for r in reversed(monthly)]
         
+        # グラフ用：受注ステータス分布
         status_data = conn.execute("SELECT status, COUNT(*) as c FROM orders GROUP BY status").fetchall()
         s_labels = [r["status"] for r in status_data]
         s_values = [r["c"] for r in status_data]
 
-        recent = conn.execute("SELECT o.*, p.name FROM orders o JOIN products p ON o.product_id = p.id ORDER BY o.order_date DESC LIMIT 5").fetchall()
+        # 最近の受注5件
+        recent = conn.execute("""
+            SELECT o.*, p.name 
+            FROM orders o 
+            JOIN products p ON o.product_id = p.id 
+            ORDER BY o.order_date DESC LIMIT 5
+        """).fetchall()
 
     return render_template("dashboard.html", total_sales=total_sales, today_sales=today_sales, 
                            uninvoiced=uninvoiced, low_stock=low_stock,
@@ -223,7 +248,11 @@ def export_csv():
     cw = csv.writer(si)
     cw.writerow(["ID", "日付", "商品名", "数量", "合計金額", "状態"])
     with get_db() as conn:
-        rows = conn.execute("SELECT o.id, o.order_date, p.name, o.quantity, o.total_price, o.status FROM orders o JOIN products p ON o.product_id = p.id").fetchall()
+        rows = conn.execute("""
+            SELECT o.id, o.order_date, p.name, o.quantity, o.total_price, o.status 
+            FROM orders o 
+            JOIN products p ON o.product_id = p.id
+        """).fetchall()
         for r in rows: cw.writerow(list(r))
     resp = make_response(si.getvalue().encode("utf-8-sig"))
     resp.headers["Content-Disposition"] = "attachment; filename=orders.csv"
