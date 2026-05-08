@@ -1,11 +1,19 @@
 import sqlite3
 import io
 import csv
+import random
+from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, make_response
-from datetime import datetime
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = "sales_pro_ultra_secret"
+app.secret_key = "super-secret-business-key"
+
+# --- ログイン管理の設定 ---
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login"
 
 DATABASE = "database.db"
 
@@ -15,262 +23,206 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
-# データベース初期化
+# ユーザーモデル
+class User(UserMixin):
+    def __init__(self, id, username):
+        self.id = id
+        self.username = username
+
+@login_manager.user_loader
+def load_user(user_id):
+    with get_db() as conn:
+        user = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        if user:
+            return User(user["id"], user["username"])
+    return None
+
+# --- データベース初期化 & シード機能 ---
 def init_db():
     with get_db() as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS products (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                price INTEGER NOT NULL,
-                stock INTEGER NOT NULL
-            )
-        """)
+        # ユーザーテーブル
+        conn.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT)")
+        # 商品テーブル
+        conn.execute("CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, price INTEGER NOT NULL, stock INTEGER NOT NULL)")
+        # 受注テーブル
         conn.execute("""
             CREATE TABLE IF NOT EXISTS orders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                product_id INTEGER NOT NULL,
-                quantity INTEGER NOT NULL,
-                total_price INTEGER NOT NULL,
-                status TEXT NOT NULL,
-                order_date DATETIME NOT NULL,
+                id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER NOT NULL,
+                quantity INTEGER NOT NULL, total_price INTEGER NOT NULL,
+                status TEXT NOT NULL, order_date DATETIME NOT NULL,
                 FOREIGN KEY (product_id) REFERENCES products (id)
             )
         """)
+        
+        # テスト用ユーザーの作成 (admin / password)
+        if not conn.execute("SELECT * FROM users WHERE username = 'admin'").fetchone():
+            hashed_pw = generate_password_hash("password")
+            conn.execute("INSERT INTO users (username, password) VALUES (?, ?)", ("admin", hashed_pw))
+        
+        # デモデータの投入
+        if conn.execute("SELECT COUNT(*) FROM products").fetchone()[0] == 0:
+            sample_prods = [("ノートPC", 120000, 10), ("モニター", 35000, 20), ("キーボード", 12000, 50), ("マウス", 4500, 100)]
+            conn.executemany("INSERT INTO products (name, price, stock) VALUES (?, ?, ?)", sample_prods)
+            
+            p_ids = [r["id"] for r in conn.execute("SELECT id FROM products").fetchall()]
+            for _ in range(30):
+                d = datetime.now() - timedelta(days=random.randint(0, 60))
+                conn.execute("INSERT INTO orders (product_id, quantity, total_price, status, order_date) VALUES (?, ?, ?, ?, ?)",
+                             (random.choice(p_ids), random.randint(1, 3), random.randint(5000, 50000), 
+                              random.choice(["未請求", "請求済", "入金済"]), d))
         conn.commit()
 
-# --- 初期データ投入 (Seed機能) ---
-def seed_db():
-    import random
-    from datetime import timedelta
-    
-    with get_db() as conn:
-        # 商品が1件も存在しない場合のみ実行
-        count = conn.execute("SELECT COUNT(*) FROM products").fetchone()[0]
-        if count == 0:
-            print("初期データを投入しています...")
-            
-            # 1. サンプル商品の投入 (10件)
-            sample_products = [
-                ("高性能ノートPC", 120000, 15),
-                ("ワイヤレスマウス", 3500, 50),
-                ("27インチモニター", 32000, 8),
-                ("メカニカルキーボード", 12000, 20),
-                ("USB-C ハブ", 5800, 30),
-                ("Webカメラ Pro", 8500, 3), # 在庫少なめ
-                ("エルゴノミクスチェア", 45000, 5),
-                ("ポータブルSSD 1TB", 15000, 12),
-                ("Bluetoothヘッドセット", 7200, 25),
-                ("デスクライト LED", 4200, 40)
-            ]
-            conn.executemany("INSERT INTO products (name, price, stock) VALUES (?, ?, ?)", sample_products)
-            
-            # 2. サンプル受注データの投入
-            # 商品IDを全件取得
-            product_rows = conn.execute("SELECT id, price FROM products").fetchall()
-            statuses = ["未請求", "請求済", "入金済", "キャンセル"]
-            
-            for _ in range(20): # 20件のランダムな受注を作成
-                p = random.choice(product_rows)
-                p_id = p["id"]
-                unit_price = p["price"]
-                qty = random.randint(1, 3)
-                total = unit_price * qty
-                status = random.choice(statuses)
-                # 直近30日以内のランダムな日付
-                days_ago = random.randint(0, 30)
-                order_time = datetime.now() - timedelta(days=days_ago, hours=random.randint(0, 23))
-                
-                conn.execute("""
-                    INSERT INTO orders (product_id, quantity, total_price, status, order_date) 
-                    VALUES (?, ?, ?, ?, ?)
-                """, (p_id, qty, total, status, order_time))
-            
-            conn.commit()
-            print("初期データの投入が完了しました。")
-
-# アプリ起動時にテーブル作成とデータ投入を実行
 init_db()
-seed_db()
 
-# --- ルーティング ---
+# --- 認証ルート ---
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
+        with get_db() as conn:
+            user = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+            if user and check_password_hash(user["password"], password):
+                login_user(User(user["id"], user["username"]))
+                return redirect(url_for("index"))
+        flash("ユーザー名またはパスワードが正しくありません")
+    return render_template("login.html")
 
-# 1. ダッシュボード (KPI & グラフ)
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for("login"))
+
+# --- メイン機能 ---
+
 @app.route("/")
+@login_required
 def index():
     with get_db() as conn:
-        # KPIデータ
+        # KPI
         total_sales = conn.execute("SELECT SUM(total_price) FROM orders WHERE status != 'キャンセル'").fetchone()[0] or 0
-        today_sales = conn.execute("SELECT SUM(total_price) FROM orders WHERE status != 'キャンセル' AND date(order_date) = date('now')").fetchone()[0] or 0
-        uninvoiced_count = conn.execute("SELECT COUNT(*) FROM orders WHERE status = '未請求'").fetchone()[0] or 0
-        low_stock_count = conn.execute("SELECT COUNT(*) FROM products WHERE stock < 5").fetchone()[0] or 0
+        today_sales = conn.execute("SELECT SUM(total_price) FROM orders WHERE date(order_date) = date('now') AND status != 'キャンセル'").fetchone()[0] or 0
+        uninvoiced = conn.execute("SELECT COUNT(*) FROM orders WHERE status = '未請求'").fetchone()[0] or 0
+        low_stock = conn.execute("SELECT COUNT(*) FROM products WHERE stock < 5").fetchone()[0] or 0
         
-        # 最近の受注
-        recent_orders = conn.execute("""
-            SELECT o.id, strftime('%Y-%m-%d %H:%M:%S', o.order_date) as order_date, 
-                   p.name as product_name, o.quantity, o.total_price, o.status 
-            FROM orders o JOIN products p ON o.product_id = p.id 
+        # 月別売上 (過去6ヶ月)
+        monthly = conn.execute("""
+            SELECT strftime('%Y-%m', order_date) as m, SUM(total_price) as s 
+            FROM orders GROUP BY m ORDER BY m DESC LIMIT 6
+        """).fetchall()
+        m_labels = [r["m"] for r in reversed(monthly)]
+        m_values = [r["s"] for r in reversed(monthly)]
+        
+        # ステータス別件数
+        status_data = conn.execute("SELECT status, COUNT(*) as c FROM orders GROUP BY status").fetchall()
+        s_labels = [r["status"] for r in status_data]
+        s_values = [r["c"] for r in status_data]
+
+        recent = conn.execute("""
+            SELECT o.*, p.name FROM orders o JOIN products p ON o.product_id = p.id 
             ORDER BY o.order_date DESC LIMIT 5
         """).fetchall()
 
-        # 月別売上データ (Chart.js用) - 直近6ヶ月
-        monthly_data = conn.execute("""
-            SELECT strftime('%Y-%m', order_date) as month, SUM(total_price) as sales
-            FROM orders WHERE status != 'キャンセル'
-            GROUP BY month ORDER BY month DESC LIMIT 6
-        """).fetchall()
-        
-        # グラフ用にデータを整形 (逆順にして時系列に)
-        chart_labels = [row["month"] for row in reversed(monthly_data)]
-        chart_values = [row["sales"] for row in reversed(monthly_data)]
+    return render_template("dashboard.html", total_sales=total_sales, today_sales=today_sales, 
+                           uninvoiced=uninvoiced, low_stock=low_stock,
+                           m_labels=m_labels, m_values=m_values,
+                           s_labels=s_labels, s_values=s_values, recent=recent)
 
-    return render_template("dashboard.html", 
-                           total_sales=total_sales, today_sales=today_sales,
-                           uninvoiced_count=uninvoiced_count, low_stock_count=low_stock_count,
-                           recent_orders=recent_orders,
-                           chart_labels=chart_labels, chart_values=chart_values)
-
-# 2. 商品管理 (一覧・検索)
 @app.route("/products", methods=["GET", "POST"])
+@login_required
 def products():
-    q = request.args.get("q", "")
     conn = get_db()
-    
     if request.method == "POST":
-        name = request.form["name"]
-        price = int(request.form["price"])
-        stock = int(request.form["stock"])
-        conn.execute("INSERT INTO products (name, price, stock) VALUES (?, ?, ?)", (name, price, stock))
+        conn.execute("INSERT INTO products (name, price, stock) VALUES (?, ?, ?)", 
+                     (request.form["name"], request.form["price"], request.form["stock"]))
         conn.commit()
-        flash(f"商品「{name}」を登録しました")
+        flash("商品を登録しました")
         return redirect(url_for("products"))
     
-    if q:
-        products_list = conn.execute("SELECT * FROM products WHERE name LIKE ?", ('%' + q + '%',)).fetchall()
-    else:
-        products_list = conn.execute("SELECT * FROM products").fetchall()
-        
-    return render_template("products.html", products=products_list, q=q)
+    q = request.args.get("q", "")
+    items = conn.execute("SELECT * FROM products WHERE name LIKE ?", (f"%{q}%",)).fetchall()
+    return render_template("products.html", products=items, q=q)
 
-# 商品編集
 @app.route("/products/edit/<int:id>", methods=["GET", "POST"])
+@login_required
 def edit_product(id):
     conn = get_db()
     if request.method == "POST":
-        name = request.form["name"]
-        price = int(request.form["price"])
-        stock = int(request.form["stock"])
-        conn.execute("UPDATE products SET name=?, price=?, stock=? WHERE id=?", (name, price, stock, id))
+        conn.execute("UPDATE products SET name=?, price=?, stock=? WHERE id=?",
+                     (request.form["name"], request.form["price"], request.form["stock"], id))
         conn.commit()
         flash("商品情報を更新しました")
         return redirect(url_for("products"))
-    
-    product = conn.execute("SELECT * FROM products WHERE id=?", (id,)).fetchone()
-    return render_template("edit_product.html", product=product)
+    item = conn.execute("SELECT * FROM products WHERE id = ?", (id,)).fetchone()
+    return render_template("edit_product.html", product=item)
 
-# 商品削除
 @app.route("/products/delete/<int:id>", methods=["POST"])
+@login_required
 def delete_product(id):
     with get_db() as conn:
-        conn.execute("DELETE FROM products WHERE id=?", (id,))
+        conn.execute("DELETE FROM products WHERE id = ?", (id,))
         conn.commit()
     flash("商品を削除しました")
     return redirect(url_for("products"))
 
-# 3. 受注管理 (一覧・検索・フィルタ)
 @app.route("/orders")
+@login_required
 def orders():
     q = request.args.get("q", "")
-    status_filter = request.args.get("status", "")
-    
-    query = """
-        SELECT o.id, strftime('%Y-%m-%d %H:%M:%S', o.order_date) as order_date, 
-               p.name as product_name, o.quantity, o.total_price, o.status 
-        FROM orders o JOIN products p ON o.product_id = p.id
-        WHERE (p.name LIKE ?)
-    """
-    params = ['%' + q + '%']
-    
-    if status_filter:
+    status = request.args.get("status", "")
+    query = "SELECT o.*, p.name FROM orders o JOIN products p ON o.product_id = p.id WHERE p.name LIKE ?"
+    params = [f"%{q}%"]
+    if status:
         query += " AND o.status = ?"
-        params.append(status_filter)
-        
+        params.append(status)
     query += " ORDER BY o.order_date DESC"
-    
     with get_db() as conn:
-        orders_list = conn.execute(query, params).fetchall()
-        
-    return render_template("orders.html", orders=orders_list, q=q, status_filter=status_filter)
+        items = conn.execute(query, params).fetchall()
+    return render_template("orders.html", orders=items, q=q, status_filter=status)
 
-# 4. 受注登録
 @app.route("/orders/add", methods=["GET", "POST"])
+@login_required
 def add_order():
     conn = get_db()
     if request.method == "POST":
-        product_id = int(request.form["product_id"])
-        quantity = int(request.form["quantity"])
-        product = conn.execute("SELECT * FROM products WHERE id = ?", (product_id,)).fetchone()
-        
-        if product and product["stock"] >= quantity:
-            total_price = product["price"] * quantity
+        p_id = request.form["product_id"]
+        qty = int(request.form["quantity"])
+        p = conn.execute("SELECT * FROM products WHERE id = ?", (p_id,)).fetchone()
+        if p and p["stock"] >= qty:
+            total = p["price"] * qty
             conn.execute("INSERT INTO orders (product_id, quantity, total_price, status, order_date) VALUES (?, ?, ?, ?, ?)",
-                         (product_id, quantity, total_price, "未請求", datetime.now()))
-            conn.execute("UPDATE products SET stock = stock - ? WHERE id = ?", (quantity, product_id))
+                         (p_id, qty, total, "未請求", datetime.now()))
+            conn.execute("UPDATE products SET stock = stock - ? WHERE id = ?", (qty, p_id))
             conn.commit()
-            flash("受注を登録し、在庫を更新しました")
+            flash("受注を登録しました")
             return redirect(url_for("orders"))
-        else:
-            flash("在庫不足のため登録できません")
-            
-    products_list = conn.execute("SELECT * FROM products").fetchall()
-    return render_template("add_order.html", products=products_list)
+        flash("在庫が不足しています")
+    prods = conn.execute("SELECT * FROM products").fetchall()
+    return render_template("add_order.html", products=prods)
 
-# ステータス更新
-@app.route("/orders/update_status/<int:order_id>", methods=["POST"])
-def update_status(order_id):
-    new_status = request.form["status"]
+@app.route("/orders/update_status/<int:id>", methods=["POST"])
+@login_required
+def update_status(id):
     with get_db() as conn:
-        conn.execute("UPDATE orders SET status = ? WHERE id = ?", (new_status, order_id))
+        conn.execute("UPDATE orders SET status = ? WHERE id = ?", (request.form["status"], id))
         conn.commit()
-    flash(f"ステータスを {new_status} に更新しました")
+    flash("ステータスを更新しました")
     return redirect(request.referrer or url_for("orders"))
 
-# 5. CSVエクスポート
-@app.route("/export/orders")
-def export_orders():
+@app.route("/export/csv")
+@login_required
+def export_csv():
     si = io.StringIO()
     cw = csv.writer(si)
-    cw.writerow(["受注ID", "日時", "商品名", "数量", "合計金額", "ステータス"])
-    
+    cw.writerow(["ID", "日付", "商品名", "数量", "合計金額", "状態"])
     with get_db() as conn:
-        rows = conn.execute("""
-            SELECT o.id, strftime('%Y-%m-%d %H:%M:%S', o.order_date), p.name, o.quantity, o.total_price, o.status
-            FROM orders o JOIN products p ON o.product_id = p.id ORDER BY o.order_date DESC
-        """).fetchall()
-        for row in rows:
-            cw.writerow(list(row))
-            
-    output = make_response(si.getvalue().encode('utf-8-sig'))
-    output.headers["Content-Disposition"] = "attachment; filename=all_orders.csv"
-    output.headers["Content-type"] = "text/csv"
-    return output
-
-@app.route("/export/recent")
-def export_recent():
-    si = io.StringIO()
-    cw = csv.writer(si)
-    cw.writerow(["受注ID", "日時", "商品名", "数量", "合計金額", "ステータス"])
-    with get_db() as conn:
-        rows = conn.execute("""
-            SELECT o.id, strftime('%Y-%m-%d %H:%M:%S', o.order_date), p.name, o.quantity, o.total_price, o.status
-            FROM orders o JOIN products p ON o.product_id = p.id ORDER BY o.order_date DESC LIMIT 5
-        """).fetchall()
-        for row in rows:
-            cw.writerow(list(row))
-    output = make_response(si.getvalue().encode('utf-8-sig'))
-    output.headers["Content-Disposition"] = "attachment; filename=recent_orders.csv"
-    output.headers["Content-type"] = "text/csv"
-    return output
+        rows = conn.execute("SELECT o.id, o.order_date, p.name, o.quantity, o.total_price, o.status FROM orders o JOIN products p ON o.product_id = p.id").fetchall()
+        for r in rows: cw.writerow(list(r))
+    resp = make_response(si.getvalue().encode("utf-8-sig"))
+    resp.headers["Content-Disposition"] = "attachment; filename=orders.csv"
+    resp.headers["Content-type"] = "text/csv"
+    return resp
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -1,114 +1,106 @@
 {% extends "base.html" %}
 
 {% block page_title %}
-<h1>ダッシュボードサマリー</h1>
+<h1>ダッシュボード</h1>
 {% endblock %}
 
 {% block content %}
-<!-- KPIカードセクション -->
+<!-- KPIカード -->
 <div class="stats-grid">
     <div class="stat-card">
-        <div class="stat-icon" style="background-color: #dbeafe; color: #1e40af;">
-            <i class="fa-solid fa-coins"></i>
-        </div>
+        <div class="stat-icon sales"><i class="fa-solid fa-yen-sign"></i></div>
         <div class="stat-info">
-            <h3>総売上金額</h3>
+            <h3>総売上</h3>
             <p class="stat-value">{{ "{:,}".format(total_sales) }} 円</p>
         </div>
     </div>
     <div class="stat-card">
-        <div class="stat-icon" style="background-color: #d1fae5; color: #065f46;">
-            <i class="fa-solid fa-calendar-day"></i>
-        </div>
+        <div class="stat-icon today"><i class="fa-solid fa-calendar-day"></i></div>
         <div class="stat-info">
-            <h3>本日の売上</h3>
+            <h3>本日売上</h3>
             <p class="stat-value">{{ "{:,}".format(today_sales) }} 円</p>
         </div>
     </div>
     <div class="stat-card">
-        <div class="stat-icon" style="background-color: #fef3c7; color: #92400e;">
-            <i class="fa-solid fa-clock"></i>
-        </div>
+        <div class="stat-icon task"><i class="fa-solid fa-clock"></i></div>
         <div class="stat-info">
             <h3>未請求件数</h3>
-            <p class="stat-value">{{ uninvoiced_count }} 件</p>
+            <p class="stat-value">{{ uninvoiced }} 件</p>
         </div>
     </div>
     <div class="stat-card">
-        <div class="stat-icon" style="background-color: #fee2e2; color: #991b1b;">
-            <i class="fa-solid fa-triangle-exclamation"></i>
-        </div>
+        <div class="stat-icon stock"><i class="fa-solid fa-triangle-exclamation"></i></div>
         <div class="stat-info">
-            <h3>在庫不足商品</h3>
-            <p class="stat-value">{{ low_stock_count }} 点</p>
+            <h3>在庫不足</h3>
+            <p class="stat-value">{{ low_stock }} 点</p>
         </div>
     </div>
 </div>
 
-<!-- グラフ & 最近の受注 -->
-<div class="dashboard-main-grid" style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; margin-bottom: 32px;">
+<div class="charts-row">
     <!-- 売上推移グラフ -->
-    <section class="card-section">
-        <div class="section-header">
-            <h2><i class="fa-solid fa-chart-line"></i> 月別売上推移</h2>
-        </div>
-        <div style="padding: 24px;">
-            <canvas id="salesChart" style="max-height: 300px;"></canvas>
-        </div>
-    </section>
-
-    <!-- 最近の受注 -->
-    <section class="card-section">
-        <div class="section-header">
-            <h2><i class="fa-solid fa-list"></i> 直近の受注</h2>
-            <a href="{{ url_for('export_recent') }}" class="btn-primary" style="font-size: 0.75rem; padding: 4px 10px;">CSV出力</a>
-        </div>
-        <table style="font-size: 0.85rem;">
-            <thead>
-                <tr>
-                    <th>商品</th>
-                    <th>合計</th>
-                    <th>状態</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for order in recent_orders %}
-                <tr>
-                    <td>{{ order.product_name }}</td>
-                    <td style="font-weight: 600;">{{ "{:,}".format(order.total_price) }}</td>
-                    <td><span class="badge status-{{ order.status }}">{{ order.status }}</span></td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </section>
+    <div class="chart-container card-section">
+        <div class="section-header"><h2>月別売上推移</h2></div>
+        <div class="chart-wrapper"><canvas id="salesChart"></canvas></div>
+    </div>
+    <!-- ステータス別比率 -->
+    <div class="chart-container card-section">
+        <div class="section-header"><h2>受注ステータス比率</h2></div>
+        <div class="chart-wrapper"><canvas id="statusChart"></canvas></div>
+    </div>
 </div>
 
-<!-- Chart.js のスクリプト -->
+<section class="card-section">
+    <div class="section-header">
+        <h2>最近の受注</h2>
+        <a href="{{ url_for('orders') }}" class="btn-primary small">すべて見る</a>
+    </div>
+    <table>
+        <thead>
+            <tr><th>日付</th><th>商品名</th><th>合計金額</th><th>状態</th></tr>
+        </thead>
+        <tbody>
+            {% for o in recent %}
+            <tr>
+                <td>{{ o.order_date }}</td>
+                <td>{{ o.name }}</td>
+                <td>{{ "{:,}".format(o.total_price) }} 円</td>
+                <td><span class="badge status-{{ o.status }}">{{ o.status }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
 <script>
-    const ctx = document.getElementById('salesChart').getContext('2d');
-    new Chart(ctx, {
+    // 売上推移
+    new Chart(document.getElementById('salesChart'), {
         type: 'line',
         data: {
-            labels: {{ chart_labels|tojson }},
+            labels: {{ m_labels|tojson }},
             datasets: [{
-                label: '月別売上 (円)',
-                data: {{ chart_values|tojson }},
+                label: '売上',
+                data: {{ m_values|tojson }},
                 borderColor: '#2563eb',
                 backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                borderWidth: 3,
                 fill: true,
                 tension: 0.4
             }]
         },
-        options: {
-            responsive: true,
-            plugins: { legend: { display: false } },
-            scales: {
-                y: { beginAtZero: true, grid: { borderDash: [5, 5] } },
-                x: { grid: { display: false } }
-            }
-        }
+        options: { responsive: true, maintainAspectRatio: false }
+    });
+
+    // ステータス比率
+    new Chart(document.getElementById('statusChart'), {
+        type: 'doughnut',
+        data: {
+            labels: {{ s_labels|tojson }},
+            datasets: [{
+                data: {{ s_values|tojson }},
+                backgroundColor: ['#fbbf24', '#3b82f6', '#10b981', '#ef4444']
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
     });
 </script>
 {% endblock %}
