@@ -35,14 +35,8 @@
                 </ul>
             </nav>
             <div class="sidebar-footer">
-                <div class="user-info-side">
-                    <i class="fa-solid fa-user-check"></i> {{ current_user.username }}
-                </div>
-                <a href="{{ url_for('logout') }}" class="btn-logout">
-                    <i class="fa-solid fa-right-from-bracket"></i> ログアウト
-                </a>
-                <a href="{{ url_for('export_orders') }}" class="btn-export" style="margin-top: 10px;">
-                    <i class="fa-solid fa-file-csv"></i> 全データ出力
+                <a href="{{ url_for('export_csv') }}" class="btn-export">
+                    <i class="fa-solid fa-file-csv"></i> 全データ出力(CSV)
                 </a>
             </div>
         </aside>
@@ -54,8 +48,8 @@
                     {% block page_title %}{% endblock %}
                 </div>
                 <div class="user-profile">
-                    <span class="badge status-入金済">稼働中</span>
-                    <i class="fa-solid fa-user-circle"></i> Admin
+                    <span class="badge status-入金済">システム稼働中</span>
+                    <i class="fa-solid fa-user-circle"></i> Guest
                 </div>
             </header>
 

@@ -4,53 +4,21 @@ import csv
 import random
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, make_response
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-# セッションの暗号化に必要なシークレットキー
-app.secret_key = "full-auth-secure-key"
-
-# --- ログイン管理 (Flask-Login) の設定 ---
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = "login" # ログインしていない場合にリダイレクトするページ
+app.secret_key = "sales_pro_simple_key"
 
 DATABASE = "database.db"
 
-# データベースに接続するための関数
+# データベース接続
 def get_db():
     conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row # カラム名でデータにアクセスできるようにする
+    conn.row_factory = sqlite3.Row
     return conn
 
-# Flask-Loginが使用するユーザーオブジェクトの定義
-class User(UserMixin):
-    def __init__(self, id, username):
-        self.id = id
-        self.username = username
-
-# セッションからユーザー情報を読み込む関数
-@login_manager.user_loader
-def load_user(user_id):
-    with get_db() as conn:
-        # user_idは文字列で渡されるためキャストして検索
-        user = conn.execute("SELECT * FROM users WHERE id = ?", (int(user_id),)).fetchone()
-        if user:
-            return User(user["id"], user["username"])
-    return None
-
-# --- データベースの初期設定 (テーブル作成 & 初期データ) ---
+# データベース初期化
 def init_db():
     with get_db() as conn:
-        # ユーザーテーブル
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                username TEXT UNIQUE NOT NULL, 
-                password TEXT NOT NULL
-            )
-        """)
         # 商品テーブル
         conn.execute("""
             CREATE TABLE IF NOT EXISTS products (
@@ -73,71 +41,26 @@ def init_db():
             )
         """)
         conn.commit()
-        print("Database tables initialized.")
 
-# アプリ起動時に必ず実行
+# アプリ起動時に初期化
 init_db()
 
-# --- 認証（ログイン・登録）のルート ---
-
-@app.route("/register", methods=["GET", "POST"])
-def register():
-    if request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
-        
-        # パスワードを安全にハッシュ化
-        hashed_password = generate_password_hash(password)
-        
-        try:
-            with get_db() as conn:
-                conn.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed_password))
-                conn.commit()
-            flash("ユーザー登録が完了しました。ログインしてください。")
-            return redirect(url_for("login"))
-        except sqlite3.IntegrityError:
-            flash("このユーザー名は既に使用されています。")
-            
-    return render_template("register.html")
-
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
-        with get_db() as conn:
-            user = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
-            # パスワードの照合
-            if user and check_password_hash(user["password"], password):
-                user_obj = User(user["id"], user["username"])
-                login_user(user_obj) # ログイン状態にする
-                return redirect(url_for("index"))
-        flash("ユーザー名またはパスワードが正しくありません")
-    return render_template("login.html")
-
-@app.route("/logout")
-@login_required
-def logout():
-    logout_user() # ログアウト処理
-    flash("ログアウトしました")
-    return redirect(url_for("login"))
-
-# --- メイン機能（受注・在庫管理）のルート ---
+# --- メイン機能 ---
 
 @app.route("/")
-@login_required # ログインしていないとアクセス不可
 def index():
     with get_db() as conn:
-        # ダッシュボード用集計
+        # KPIデータ
         total_sales = conn.execute("SELECT SUM(total_price) FROM orders WHERE status != 'キャンセル'").fetchone()[0] or 0
         today_sales = conn.execute("SELECT SUM(total_price) FROM orders WHERE date(order_date) = date('now') AND status != 'キャンセル'").fetchone()[0] or 0
         uninvoiced = conn.execute("SELECT COUNT(*) FROM orders WHERE status = '未請求'").fetchone()[0] or 0
         low_stock = conn.execute("SELECT COUNT(*) FROM products WHERE stock < 5").fetchone()[0] or 0
         
-        # グラフ用：月別売上推移
+        # グラフ用：月別売上推移（直近6ヶ月）
         monthly = conn.execute("""
             SELECT strftime('%Y-%m', order_date) as m, SUM(total_price) as s 
-            FROM orders GROUP BY m ORDER BY m DESC LIMIT 6
+            FROM orders WHERE status != 'キャンセル' 
+            GROUP BY m ORDER BY m DESC LIMIT 6
         """).fetchall()
         m_labels = [r["m"] for r in reversed(monthly)]
         m_values = [r["s"] for r in reversed(monthly)]
@@ -147,9 +70,9 @@ def index():
         s_labels = [r["status"] for r in status_data]
         s_values = [r["c"] for r in status_data]
 
-        # 最近の受注5件
+        # 最近の受注5件（p.name を name として取得）
         recent = conn.execute("""
-            SELECT o.*, p.name 
+            SELECT o.*, p.name as name 
             FROM orders o 
             JOIN products p ON o.product_id = p.id 
             ORDER BY o.order_date DESC LIMIT 5
@@ -161,7 +84,6 @@ def index():
                            s_labels=s_labels, s_values=s_values, recent=recent)
 
 @app.route("/products", methods=["GET", "POST"])
-@login_required
 def products():
     conn = get_db()
     if request.method == "POST":
@@ -176,7 +98,6 @@ def products():
     return render_template("products.html", products=items, q=q)
 
 @app.route("/products/edit/<int:id>", methods=["GET", "POST"])
-@login_required
 def edit_product(id):
     conn = get_db()
     if request.method == "POST":
@@ -189,7 +110,6 @@ def edit_product(id):
     return render_template("edit_product.html", product=item)
 
 @app.route("/products/delete/<int:id>", methods=["POST"])
-@login_required
 def delete_product(id):
     with get_db() as conn:
         conn.execute("DELETE FROM products WHERE id = ?", (id,))
@@ -198,11 +118,11 @@ def delete_product(id):
     return redirect(url_for("products"))
 
 @app.route("/orders")
-@login_required
 def orders():
     q = request.args.get("q", "")
     status = request.args.get("status", "")
-    query = "SELECT o.*, p.name FROM orders o JOIN products p ON o.product_id = p.id WHERE p.name LIKE ?"
+    # p.name を name として取得するように統一
+    query = "SELECT o.*, p.name as name FROM orders o JOIN products p ON o.product_id = p.id WHERE p.name LIKE ?"
     params = [f"%{q}%"]
     if status:
         query += " AND o.status = ?"
@@ -213,7 +133,6 @@ def orders():
     return render_template("orders.html", orders=items, q=q, status_filter=status)
 
 @app.route("/orders/add", methods=["GET", "POST"])
-@login_required
 def add_order():
     conn = get_db()
     if request.method == "POST":
@@ -233,7 +152,6 @@ def add_order():
     return render_template("add_order.html", products=prods)
 
 @app.route("/orders/update_status/<int:id>", methods=["POST"])
-@login_required
 def update_status(id):
     with get_db() as conn:
         conn.execute("UPDATE orders SET status = ? WHERE id = ?", (request.form["status"], id))
@@ -242,7 +160,6 @@ def update_status(id):
     return redirect(request.referrer or url_for("orders"))
 
 @app.route("/export/csv")
-@login_required
 def export_csv():
     si = io.StringIO()
     cw = csv.writer(si)

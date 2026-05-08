@@ -9,7 +9,8 @@
     <div class="section-header">
         <h2><i class="fa-solid fa-filter"></i> 絞り込み検索</h2>
         <div style="display: flex; gap: 12px;">
-            <a href="{{ url_for('export_orders') }}" class="btn-primary" style="background-color: #64748b;">
+            <!-- url_for の中身を app.py の関数名 export_csv に合わせる -->
+            <a href="{{ url_for('export_csv') }}" class="btn-primary" style="background-color: #64748b;">
                 <i class="fa-solid fa-download"></i> CSV出力
             </a>
             <a href="{{ url_for('add_order') }}" class="btn-primary">
@@ -20,8 +21,8 @@
     <div style="padding: 20px; border-bottom: 1px solid var(--border-color);">
         <form method="GET" style="display: flex; gap: 16px; align-items: flex-end;">
             <div class="form-group" style="margin-bottom: 0; flex: 1;">
-                <label style="font-size: 0.75rem;">キーワード (商品名など)</label>
-                <input type="text" name="q" value="{{ q }}" placeholder="検索...">
+                <label style="font-size: 0.75rem;">キーワード (商品名検索)</label>
+                <input type="text" name="q" value="{{ q }}" placeholder="商品名で検索...">
             </div>
             <div class="form-group" style="margin-bottom: 0; width: 200px;">
                 <label style="font-size: 0.75rem;">ステータス</label>
@@ -54,12 +55,14 @@
                 {% for order in orders %}
                 <tr>
                     <td style="font-size: 0.85rem; color: var(--text-muted);">{{ order.order_date }}</td>
-                    <td style="font-weight: 500;">{{ order.product_name }}</td>
+                    <!-- app.py の JOIN クエリでは p.name as name ではなく p.name そのまま取得している場合を考慮 -->
+                    <td style="font-weight: 500;">{{ order.name }}</td>
                     <td>{{ order.quantity }}</td>
-                    <td style="font-weight: 600;">{{ "{:,}".format(order.total_price) }}</td>
+                    <td style="font-weight: 600;">{{ "{:,}".format(order.total_price) }} 円</td>
                     <td><span class="badge status-{{ order.status }}">{{ order.status }}</span></td>
                     <td>
-                        <form action="{{ url_for('update_status', order_id=order.id) }}" method="POST" style="display: flex; gap: 4px;">
+                        <!-- url_for の引数名を app.py の引数名 id に合わせる -->
+                        <form action="{{ url_for('update_status', id=order.id) }}" method="POST" style="display: flex; gap: 4px;">
                             <select name="status" style="padding: 4px; font-size: 0.8rem; border-radius: 4px; width: 100px;">
                                 <option value="未請求" {{ 'selected' if order.status == '未請求' }}>未請求</option>
                                 <option value="請求済" {{ 'selected' if order.status == '請求済' }}>請求済</option>
