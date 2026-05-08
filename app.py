@@ -39,7 +39,59 @@ def init_db():
         """)
         conn.commit()
 
+# --- 初期データ投入 (Seed機能) ---
+def seed_db():
+    import random
+    from datetime import timedelta
+    
+    with get_db() as conn:
+        # 商品が1件も存在しない場合のみ実行
+        count = conn.execute("SELECT COUNT(*) FROM products").fetchone()[0]
+        if count == 0:
+            print("初期データを投入しています...")
+            
+            # 1. サンプル商品の投入 (10件)
+            sample_products = [
+                ("高性能ノートPC", 120000, 15),
+                ("ワイヤレスマウス", 3500, 50),
+                ("27インチモニター", 32000, 8),
+                ("メカニカルキーボード", 12000, 20),
+                ("USB-C ハブ", 5800, 30),
+                ("Webカメラ Pro", 8500, 3), # 在庫少なめ
+                ("エルゴノミクスチェア", 45000, 5),
+                ("ポータブルSSD 1TB", 15000, 12),
+                ("Bluetoothヘッドセット", 7200, 25),
+                ("デスクライト LED", 4200, 40)
+            ]
+            conn.executemany("INSERT INTO products (name, price, stock) VALUES (?, ?, ?)", sample_products)
+            
+            # 2. サンプル受注データの投入
+            # 商品IDを全件取得
+            product_rows = conn.execute("SELECT id, price FROM products").fetchall()
+            statuses = ["未請求", "請求済", "入金済", "キャンセル"]
+            
+            for _ in range(20): # 20件のランダムな受注を作成
+                p = random.choice(product_rows)
+                p_id = p["id"]
+                unit_price = p["price"]
+                qty = random.randint(1, 3)
+                total = unit_price * qty
+                status = random.choice(statuses)
+                # 直近30日以内のランダムな日付
+                days_ago = random.randint(0, 30)
+                order_time = datetime.now() - timedelta(days=days_ago, hours=random.randint(0, 23))
+                
+                conn.execute("""
+                    INSERT INTO orders (product_id, quantity, total_price, status, order_date) 
+                    VALUES (?, ?, ?, ?, ?)
+                """, (p_id, qty, total, status, order_time))
+            
+            conn.commit()
+            print("初期データの投入が完了しました。")
+
+# アプリ起動時にテーブル作成とデータ投入を実行
 init_db()
+seed_db()
 
 # --- ルーティング ---
 
