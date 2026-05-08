@@ -1,42 +1,76 @@
 {% extends "base.html" %}
 
-{% block content %}
+{% block title %}
 <h1>ダッシュボード</h1>
+{% endblock %}
 
+{% block content %}
+<!-- 売上サマリーカード -->
 <div class="stats-grid">
     <div class="stat-card">
-        <h3>総売上</h3>
-        <p class="stat-value">{{ "{:,}".format(total_sales) }} 円</p>
+        <div class="stat-icon">
+            <i class="fa-solid fa-yen-sign"></i>
+        </div>
+        <div class="stat-info">
+            <h3>総売上金額</h3>
+            <p class="stat-value">{{ "{:,}".format(total_sales) }} 円</p>
+        </div>
     </div>
     <div class="stat-card">
-        <h3>総受注件数</h3>
-        <p class="stat-value">{{ order_count }} 件</p>
+        <div class="stat-icon">
+            <i class="fa-solid fa-receipt"></i>
+        </div>
+        <div class="stat-info">
+            <h3>累計受注件数</h3>
+            <p class="stat-value">{{ order_count }} 件</p>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+        </div>
+        <div class="stat-info">
+            <h3>本日のステータス</h3>
+            <p class="stat-value" style="font-size: 1rem; color: var(--text-muted);">正常稼働中</p>
+        </div>
     </div>
 </div>
 
-<section>
-    <h2>最近の受注（最新5件）</h2>
-    <table>
-        <thead>
-            <tr>
-                <th>日付</th>
-                <th>商品名</th>
-                <th>数量</th>
-                <th>合計金額</th>
-                <th>ステータス</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for order in recent_orders %}
-            <tr>
-                <td>{{ order.order_date }}</td>
-                <td>{{ order.product_name }}</td>
-                <td>{{ order.quantity }}</td>
-                <td>{{ "{:,}".format(order.total_price) }} 円</td>
-                <td><span class="badge status-{{ order.status }}">{{ order.status }}</span></td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+<!-- 最近の受注セクション -->
+<section class="card-section">
+    <div class="section-header">
+        <h2><i class="fa-solid fa-list-ul"></i> 最近の受注履歴（最新5件）</h2>
+        <a href="{{ url_for('orders') }}" class="btn-primary" style="font-size: 0.8rem; padding: 6px 12px;">すべて表示</a>
+    </div>
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th>受注日時</th>
+                    <th>商品名</th>
+                    <th>数量</th>
+                    <th>合計金額</th>
+                    <th>状態</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in recent_orders %}
+                <tr>
+                    <td style="color: var(--text-muted);">{{ order.order_date }}</td>
+                    <td style="font-weight: 500;">{{ order.product_name }}</td>
+                    <td>{{ order.quantity }}</td>
+                    <td style="font-weight: 600;">{{ "{:,}".format(order.total_price) }} 円</td>
+                    <td><span class="badge status-{{ order.status }}">{{ order.status }}</span></td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                        まだ受注データがありません
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </section>
 {% endblock %}

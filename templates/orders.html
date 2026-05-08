@@ -1,48 +1,59 @@
 {% extends "base.html" %}
 
-{% block content %}
+{% block title %}
 <h1>受注・請求管理</h1>
+{% endblock %}
 
-<div class="actions">
-    <a href="{{ url_for('add_order') }}" class="btn-primary">新規受注を登録する</a>
+{% block content %}
+<div style="margin-bottom: 24px; display: flex; justify-content: flex-end;">
+    <a href="{{ url_for('add_order') }}" class="btn-primary">
+        <i class="fa-solid fa-cart-plus"></i> 新規受注を登録
+    </a>
 </div>
 
-<section>
-    <table>
-        <thead>
-            <tr>
-                <th>受注ID</th>
-                <th>日時</th>
-                <th>商品名</th>
-                <th>数量</th>
-                <th>合計金額</th>
-                <th>現在の状態</th>
-                <th>状態を更新</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for order in orders %}
-            <tr>
-                <td>{{ order.id }}</td>
-                <td>{{ order.order_date }}</td>
-                <td>{{ order.product_name }}</td>
-                <td>{{ order.quantity }}</td>
-                <td>{{ "{:,}".format(order.total_price) }} 円</td>
-                <td><span class="badge status-{{ order.status }}">{{ order.status }}</span></td>
-                <td>
-                    <form action="{{ url_for('update_status', order_id=order.id) }}" method="POST" class="inline-form">
-                        <select name="status">
-                            <option value="未請求" {{ 'selected' if order.status == '未請求' }}>未請求</option>
-                            <option value="請求済" {{ 'selected' if order.status == '請求済' }}>請求済</option>
-                            <option value="入金済" {{ 'selected' if order.status == '入金済' }}>入金済</option>
-                            <option value="キャンセル" {{ 'selected' if order.status == 'キャンセル' }}>キャンセル</option>
-                        </select>
-                        <button type="submit" class="btn-sm">更新</button>
-                    </form>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+<section class="card-section">
+    <div class="section-header">
+        <h2><i class="fa-solid fa-file-invoice"></i> 受注履歴一覧</h2>
+    </div>
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>受注日時</th>
+                    <th>商品名</th>
+                    <th>数量</th>
+                    <th>合計金額</th>
+                    <th>現在の状態</th>
+                    <th>状態を更新</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in orders %}
+                <tr>
+                    <td style="color: var(--text-muted);">#{{ order.id }}</td>
+                    <td style="font-size: 0.85rem; color: var(--text-muted);">{{ order.order_date }}</td>
+                    <td style="font-weight: 500;">{{ order.product_name }}</td>
+                    <td>{{ order.quantity }}</td>
+                    <td style="font-weight: 600;">{{ "{:,}".format(order.total_price) }} 円</td>
+                    <td><span class="badge status-{{ order.status }}">{{ order.status }}</span></td>
+                    <td>
+                        <form action="{{ url_for('update_status', order_id=order.id) }}" method="POST" style="display: flex; gap: 8px;">
+                            <select name="status" style="padding: 4px 8px; font-size: 0.8rem; border-radius: 4px;">
+                                <option value="未請求" {{ 'selected' if order.status == '未請求' }}>未請求</option>
+                                <option value="請求済" {{ 'selected' if order.status == '請求済' }}>請求済</option>
+                                <option value="入金済" {{ 'selected' if order.status == '入金済' }}>入金済</option>
+                                <option value="キャンセル" {{ 'selected' if order.status == 'キャンセル' }}>キャンセル</option>
+                            </select>
+                            <button type="submit" class="btn-primary" style="padding: 4px 12px; font-size: 0.8rem;">
+                                更新
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </section>
 {% endblock %}
