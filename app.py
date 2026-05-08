@@ -131,7 +131,37 @@ def update_status(order_id):
         conn.execute("UPDATE orders SET status = ? WHERE id = ?", (new_status, order_id))
         conn.commit()
     flash(f"ステータスを {new_status} に更新しました")
-    return redirect(url_for("orders"))
+    # 元のページに戻る（ダッシュボードからならダッシュボードへ、受注一覧からなら受注一覧へ）
+    return redirect(request.referrer or url_for("orders"))
+
+# 6. 最近の受注5件をCSVで保存（ダウンロード）
+@app.route("/export_recent")
+def export_recent():
+    import io
+    import csv
+    from flask import make_response
+
+    with get_db() as conn:
+        recent_orders = conn.execute("""
+            SELECT o.id, strftime('%Y-%m-%d %H:%M:%S', o.order_date) as order_date, 
+                   p.name as product_name, o.quantity, o.total_price, o.status
+            FROM orders o 
+            JOIN products p ON o.product_id = p.id 
+            ORDER BY o.order_date DESC LIMIT 5
+        """).fetchall()
+
+    # CSVデータの作成
+    si = io.StringIO()
+    # Excelで開いても文字化けしないように utf-8-sig を使用
+    cw = csv.writer(si)
+    cw.writerow(["受注ID", "日時", "商品名", "数量", "合計金額", "ステータス"])
+    for row in recent_orders:
+        cw.writerow([row["id"], row["order_date"], row["product_name"], row["quantity"], row["total_price"], row["status"]])
+    
+    output = make_response(si.getvalue().encode('utf-8-sig'))
+    output.headers["Content-Disposition"] = "attachment; filename=recent_orders.csv"
+    output.headers["Content-type"] = "text/csv"
+    return output
 
 if __name__ == "__main__":
     app.run(debug=True)
