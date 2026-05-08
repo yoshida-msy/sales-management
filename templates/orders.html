@@ -1,29 +1,51 @@
 {% extends "base.html" %}
 
-{% block title %}
+{% block page_title %}
 <h1>受注・請求管理</h1>
 {% endblock %}
 
 {% block content %}
-<div style="margin-bottom: 24px; display: flex; justify-content: flex-end;">
-    <a href="{{ url_for('add_order') }}" class="btn-primary">
-        <i class="fa-solid fa-cart-plus"></i> 新規受注を登録
-    </a>
-</div>
-
 <section class="card-section">
     <div class="section-header">
-        <h2><i class="fa-solid fa-file-invoice"></i> 受注履歴一覧</h2>
+        <h2><i class="fa-solid fa-filter"></i> 絞り込み検索</h2>
+        <div style="display: flex; gap: 12px;">
+            <a href="{{ url_for('export_orders') }}" class="btn-primary" style="background-color: #64748b;">
+                <i class="fa-solid fa-download"></i> CSV出力
+            </a>
+            <a href="{{ url_for('add_order') }}" class="btn-primary">
+                <i class="fa-solid fa-plus"></i> 新規受注
+            </a>
+        </div>
     </div>
+    <div style="padding: 20px; border-bottom: 1px solid var(--border-color);">
+        <form method="GET" style="display: flex; gap: 16px; align-items: flex-end;">
+            <div class="form-group" style="margin-bottom: 0; flex: 1;">
+                <label style="font-size: 0.75rem;">キーワード (商品名など)</label>
+                <input type="text" name="q" value="{{ q }}" placeholder="検索...">
+            </div>
+            <div class="form-group" style="margin-bottom: 0; width: 200px;">
+                <label style="font-size: 0.75rem;">ステータス</label>
+                <select name="status">
+                    <option value="">すべて</option>
+                    <option value="未請求" {{ 'selected' if status_filter == '未請求' }}>未請求</option>
+                    <option value="請求済" {{ 'selected' if status_filter == '請求済' }}>請求済</option>
+                    <option value="入金済" {{ 'selected' if status_filter == '入金済' }}>入金済</option>
+                    <option value="キャンセル" {{ 'selected' if status_filter == 'キャンセル' }}>キャンセル</option>
+                </select>
+            </div>
+            <button type="submit" class="btn-primary" style="height: 42px;">検索</button>
+            <a href="{{ url_for('orders') }}" style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">リセット</a>
+        </form>
+    </div>
+    
     <div class="table-responsive">
         <table>
             <thead>
                 <tr>
-                    <th>ID</th>
-                    <th>受注日時</th>
+                    <th>日時</th>
                     <th>商品名</th>
                     <th>数量</th>
-                    <th>合計金額</th>
+                    <th>合計</th>
                     <th>現在の状態</th>
                     <th>状態を更新</th>
                 </tr>
@@ -31,23 +53,20 @@
             <tbody>
                 {% for order in orders %}
                 <tr>
-                    <td style="color: var(--text-muted);">#{{ order.id }}</td>
                     <td style="font-size: 0.85rem; color: var(--text-muted);">{{ order.order_date }}</td>
                     <td style="font-weight: 500;">{{ order.product_name }}</td>
                     <td>{{ order.quantity }}</td>
-                    <td style="font-weight: 600;">{{ "{:,}".format(order.total_price) }} 円</td>
+                    <td style="font-weight: 600;">{{ "{:,}".format(order.total_price) }}</td>
                     <td><span class="badge status-{{ order.status }}">{{ order.status }}</span></td>
                     <td>
-                        <form action="{{ url_for('update_status', order_id=order.id) }}" method="POST" style="display: flex; gap: 8px;">
-                            <select name="status" style="padding: 4px 8px; font-size: 0.8rem; border-radius: 4px;">
+                        <form action="{{ url_for('update_status', order_id=order.id) }}" method="POST" style="display: flex; gap: 4px;">
+                            <select name="status" style="padding: 4px; font-size: 0.8rem; border-radius: 4px; width: 100px;">
                                 <option value="未請求" {{ 'selected' if order.status == '未請求' }}>未請求</option>
                                 <option value="請求済" {{ 'selected' if order.status == '請求済' }}>請求済</option>
                                 <option value="入金済" {{ 'selected' if order.status == '入金済' }}>入金済</option>
                                 <option value="キャンセル" {{ 'selected' if order.status == 'キャンセル' }}>キャンセル</option>
                             </select>
-                            <button type="submit" class="btn-primary" style="padding: 4px 12px; font-size: 0.8rem;">
-                                更新
-                            </button>
+                            <button type="submit" class="btn-primary" style="padding: 4px 8px; font-size: 0.75rem;">更</button>
                         </form>
                     </td>
                 </tr>

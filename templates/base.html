@@ -3,64 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>販売管理システム Pro</title>
-    <!-- モダンなフォントの読み込み -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <!-- Font Awesome (アイコン) の読み込み -->
+    <title>SalesPro - 業務管理システム</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- 独自CSSの読み込み -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- グラフライブラリ Chart.js の読み込み -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="app-container">
         <!-- サイドバー -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <i class="fa-solid fa-chart-line logo-icon"></i>
+                <i class="fa-solid fa-rocket logo-icon"></i>
                 <span class="logo-text">SalesPro</span>
             </div>
             <nav class="sidebar-nav">
                 <ul>
-                    <li class="{{ 'active' if request.path == url_for('index') }}">
-                        <a href="{{ url_for('index') }}">
-                            <i class="fa-solid fa-house"></i> ダッシュボード
-                        </a>
+                    <li class="{{ 'active' if request.endpoint == 'index' }}">
+                        <a href="{{ url_for('index') }}"><i class="fa-solid fa-gauge-high"></i> ダッシュボード</a>
                     </li>
-                    <li class="{{ 'active' if request.path == url_for('products') }}">
-                        <a href="{{ url_for('products') }}">
-                            <i class="fa-solid fa-box"></i> 商品管理
-                        </a>
+                    <li class="{{ 'active' if request.endpoint == 'products' or request.endpoint == 'edit_product' }}">
+                        <a href="{{ url_for('products') }}"><i class="fa-solid fa-box"></i> 商品管理</a>
                     </li>
-                    <li class="{{ 'active' if request.path == url_for('orders') }}">
-                        <a href="{{ url_for('orders') }}">
-                            <i class="fa-solid fa-file-invoice-dollar"></i> 受注・請求管理
-                        </a>
+                    <li class="{{ 'active' if request.endpoint == 'orders' }}">
+                        <a href="{{ url_for('orders') }}"><i class="fa-solid fa-file-invoice"></i> 受注管理</a>
                     </li>
-                    <li class="{{ 'active' if request.path == url_for('add_order') }}">
-                        <a href="{{ url_for('add_order') }}">
-                            <i class="fa-solid fa-cart-plus"></i> 新規受注登録
-                        </a>
+                    <li class="{{ 'active' if request.endpoint == 'add_order' }}">
+                        <a href="{{ url_for('add_order') }}"><i class="fa-solid fa-plus-circle"></i> 新規受注登録</a>
                     </li>
                 </ul>
             </nav>
             <div class="sidebar-footer">
-                <p>&copy; 2026 SalesPro v1.0</p>
+                <a href="{{ url_for('export_orders') }}" class="btn-export">
+                    <i class="fa-solid fa-file-csv"></i> 全データ出力
+                </a>
             </div>
         </aside>
 
-        <!-- メインコンテンツエリア -->
+        <!-- メインコンテンツ -->
         <div class="main-wrapper">
             <header class="top-bar">
-                <div class="page-title">
-                    {% block title %}{% endblock %}
+                <div class="page-info">
+                    {% block page_title %}{% endblock %}
                 </div>
-                <div class="user-info">
-                    <i class="fa-solid fa-circle-user"></i> 管理者ユーザー
+                <div class="user-profile">
+                    <span class="badge status-入金済">稼働中</span>
+                    <i class="fa-solid fa-user-circle"></i> Admin
                 </div>
             </header>
 
             <main class="content">
-                <!-- 通知メッセージ (Flash) -->
                 {% with messages = get_flashed_messages() %}
                   {% if messages %}
                     {% for message in messages %}

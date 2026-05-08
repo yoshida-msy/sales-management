@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 
-{% block title %}
-<h1>ダッシュボード</h1>
+{% block page_title %}
+<h1>ダッシュボードサマリー</h1>
 {% endblock %}
 
 {% block content %}
-<!-- 売上サマリーカード -->
+<!-- KPIカードセクション -->
 <div class="stats-grid">
     <div class="stat-card">
-        <div class="stat-icon">
-            <i class="fa-solid fa-yen-sign"></i>
+        <div class="stat-icon" style="background-color: #dbeafe; color: #1e40af;">
+            <i class="fa-solid fa-coins"></i>
         </div>
         <div class="stat-info">
             <h3>総売上金額</h3>
@@ -17,77 +17,98 @@
         </div>
     </div>
     <div class="stat-card">
-        <div class="stat-icon">
-            <i class="fa-solid fa-receipt"></i>
+        <div class="stat-icon" style="background-color: #d1fae5; color: #065f46;">
+            <i class="fa-solid fa-calendar-day"></i>
         </div>
         <div class="stat-info">
-            <h3>累計受注件数</h3>
-            <p class="stat-value">{{ order_count }} 件</p>
+            <h3>本日の売上</h3>
+            <p class="stat-value">{{ "{:,}".format(today_sales) }} 円</p>
         </div>
     </div>
     <div class="stat-card">
-        <div class="stat-icon">
-            <i class="fa-solid fa-clock-rotate-left"></i>
+        <div class="stat-icon" style="background-color: #fef3c7; color: #92400e;">
+            <i class="fa-solid fa-clock"></i>
         </div>
         <div class="stat-info">
-            <h3>本日のステータス</h3>
-            <p class="stat-value" style="font-size: 1rem; color: var(--text-muted);">正常稼働中</p>
+            <h3>未請求件数</h3>
+            <p class="stat-value">{{ uninvoiced_count }} 件</p>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon" style="background-color: #fee2e2; color: #991b1b;">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+        <div class="stat-info">
+            <h3>在庫不足商品</h3>
+            <p class="stat-value">{{ low_stock_count }} 点</p>
         </div>
     </div>
 </div>
 
-<!-- 最近の受注セクション -->
-<section class="card-section">
-    <div class="section-header">
-        <h2><i class="fa-solid fa-list-ul"></i> 最近の受注履歴（最新5件）</h2>
-        <div style="display: flex; gap: 8px;">
-            <a href="{{ url_for('export_recent') }}" class="btn-primary" style="font-size: 0.8rem; padding: 6px 12px; background-color: #64748b;">
-                <i class="fa-solid fa-file-csv"></i> CSV保存
-            </a>
-            <a href="{{ url_for('orders') }}" class="btn-primary" style="font-size: 0.8rem; padding: 6px 12px;">
-                すべて表示
-            </a>
+<!-- グラフ & 最近の受注 -->
+<div class="dashboard-main-grid" style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; margin-bottom: 32px;">
+    <!-- 売上推移グラフ -->
+    <section class="card-section">
+        <div class="section-header">
+            <h2><i class="fa-solid fa-chart-line"></i> 月別売上推移</h2>
         </div>
-    </div>
-    <div class="table-responsive">
-        <table>
+        <div style="padding: 24px;">
+            <canvas id="salesChart" style="max-height: 300px;"></canvas>
+        </div>
+    </section>
+
+    <!-- 最近の受注 -->
+    <section class="card-section">
+        <div class="section-header">
+            <h2><i class="fa-solid fa-list"></i> 直近の受注</h2>
+            <a href="{{ url_for('export_recent') }}" class="btn-primary" style="font-size: 0.75rem; padding: 4px 10px;">CSV出力</a>
+        </div>
+        <table style="font-size: 0.85rem;">
             <thead>
                 <tr>
-                    <th>受注日時</th>
-                    <th>商品名</th>
-                    <th>数量</th>
-                    <th>合計金額</th>
-                    <th>状態（保存可能）</th>
+                    <th>商品</th>
+                    <th>合計</th>
+                    <th>状態</th>
                 </tr>
             </thead>
             <tbody>
                 {% for order in recent_orders %}
                 <tr>
-                    <td style="color: var(--text-muted); font-size: 0.85rem;">{{ order.order_date }}</td>
-                    <td style="font-weight: 500;">{{ order.product_name }}</td>
-                    <td>{{ order.quantity }}</td>
-                    <td style="font-weight: 600;">{{ "{:,}".format(order.total_price) }} 円</td>
-                    <td>
-                        <form action="{{ url_for('update_status', order_id=order.id) }}" method="POST" style="display: flex; gap: 4px; align-items: center;">
-                            <select name="status" style="padding: 2px 4px; font-size: 0.75rem; border-radius: 4px; border: 1px solid var(--border-color);">
-                                <option value="未請求" {{ 'selected' if order.status == '未請求' }}>未請求</option>
-                                <option value="請求済" {{ 'selected' if order.status == '請求済' }}>請求済</option>
-                                <option value="入金済" {{ 'selected' if order.status == '入金済' }}>入金済</option>
-                                <option value="キャンセル" {{ 'selected' if order.status == 'キャンセル' }}>キャンセル</option>
-                            </select>
-                            <button type="submit" class="btn-primary" style="padding: 2px 8px; font-size: 0.7rem;">保存</button>
-                        </form>
-                    </td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-muted);">
-                        まだ受注データがありません
-                    </td>
+                    <td>{{ order.product_name }}</td>
+                    <td style="font-weight: 600;">{{ "{:,}".format(order.total_price) }}</td>
+                    <td><span class="badge status-{{ order.status }}">{{ order.status }}</span></td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-    </div>
-</section>
+    </section>
+</div>
+
+<!-- Chart.js のスクリプト -->
+<script>
+    const ctx = document.getElementById('salesChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {{ chart_labels|tojson }},
+            datasets: [{
+                label: '月別売上 (円)',
+                data: {{ chart_values|tojson }},
+                borderColor: '#2563eb',
+                backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                borderWidth: 3,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { borderDash: [5, 5] } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+</script>
 {% endblock %}
