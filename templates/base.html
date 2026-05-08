@@ -35,7 +35,13 @@
                 </ul>
             </nav>
             <div class="sidebar-footer">
-                <a href="{{ url_for('export_orders') }}" class="btn-export">
+                <div class="user-info-side">
+                    <i class="fa-solid fa-user-check"></i> {{ current_user.username }}
+                </div>
+                <a href="{{ url_for('logout') }}" class="btn-logout">
+                    <i class="fa-solid fa-right-from-bracket"></i> ログアウト
+                </a>
+                <a href="{{ url_for('export_orders') }}" class="btn-export" style="margin-top: 10px;">
                     <i class="fa-solid fa-file-csv"></i> 全データ出力
                 </a>
             </div>

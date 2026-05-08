@@ -83,3 +83,21 @@ tr:hover td { background: #f1f5f9; }
     .main-wrapper { margin-left: 0; }
     .charts-row { grid-template-columns: 1fr; }
 }
+
+/* 認証系追加スタイル */
+.user-info-side { color: #94a3b8; font-size: 0.85rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.btn-logout { 
+    display: block; text-align: center; background: #e74c3c; color: white; padding: 10px; border-radius: 6px; 
+    text-decoration: none; font-size: 0.85rem; font-weight: 600; transition: background 0.2s;
+}
+.btn-logout:hover { background: #c0392b; }
+.btn-export {
+    display: block;
+    text-align: center;
+    background: #334155;
+    color: white;
+    padding: 10px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.85rem;
+}

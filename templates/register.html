@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>ログイン - SalesPro</title>
+    <title>新規登録 - SalesPro</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -10,9 +10,10 @@
     <div class="login-container">
         <div class="login-box">
             <div class="login-header">
-                <i class="fa-solid fa-rocket logo-icon"></i>
-                <h1>SalesPro Login</h1>
+                <i class="fa-solid fa-user-plus logo-icon"></i>
+                <h1>Create Account</h1>
             </div>
+            
             {% with messages = get_flashed_messages() %}
               {% if messages %}
                 {% for message in messages %}
@@ -20,20 +21,21 @@
                 {% endfor %}
               {% endif %}
             {% endwith %}
+
             <form method="POST">
                 <div class="form-group">
                     <label>ユーザー名</label>
-                    <input type="text" name="username" required placeholder="admin">
+                    <input type="text" name="username" required placeholder="例: yoshimasa">
                 </div>
                 <div class="form-group">
                     <label>パスワード</label>
-                    <input type="password" name="password" required placeholder="password">
+                    <input type="password" name="password" required placeholder="8文字以上推奨">
                 </div>
-                <button type="submit" class="btn-primary" style="width: 100%; justify-content: center;">ログイン</button>
+                <button type="submit" class="btn-primary" style="width: 100%; justify-content: center;">アカウント作成</button>
             </form>
+            
             <div class="login-footer">
-                <p>テスト用: admin / password</p>
-                <p style="margin-top: 10px;">アカウントがない場合: <a href="{{ url_for('register') }}">新規登録</a></p>
+                <p>既にアカウントをお持ちですか？ <a href="{{ url_for('login') }}">ログインはこちら</a></p>
             </div>
         </div>
     </div>
