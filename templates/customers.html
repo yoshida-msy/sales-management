@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}<h1>顧客管理</h1>{% endblock %}
+
+{% block content %}
+<div class="stats-grid" style="grid-template-columns: 1fr 2fr;">
+    <!-- 新規顧客登録 -->
+    <div class="card-section">
+        <div class="section-header"><h2><i class="fa-solid fa-user-plus"></i> 新規顧客登録</h2></div>
+        <div style="padding: 24px;">
+            <form action="{{ url_for('customers') }}" method="POST">
+                <div class="form-group">
+                    <label>会社名</label>
+                    <input type="text" name="company_name" required placeholder="株式会社〇〇">
+                </div>
+                <div class="form-group">
+                    <label>担当者名</label>
+                    <input type="text" name="contact_name" placeholder="山田 太郎">
+                </div>
+                <div class="form-group">
+                    <label>メールアドレス</label>
+                    <input type="email" name="email" placeholder="example@test.com">
+                </div>
+                <div class="form-group">
+                    <label>電話番号</label>
+                    <input type="text" name="phone" placeholder="03-1234-5678">
+                </div>
+                <div class="form-group">
+                    <label>住所</label>
+                    <input type="text" name="address" placeholder="東京都...">
+                </div>
+                <button type="submit" class="btn-primary" style="width: 100%;">登録する</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 顧客一覧 -->
+    <div class="card-section">
+        <div class="section-header">
+            <h2>顧客データベース</h2>
+            <form method="GET" style="display: flex; gap: 8px;">
+                <input type="text" name="q" value="{{ q }}" placeholder="会社名検索..." style="width: 180px;">
+                <button type="submit" class="btn-secondary small"><i class="fa-solid fa-search"></i></button>
+            </form>
+        </div>
+        <table>
+            <thead>
+                <tr><th>会社名</th><th>担当者</th><th>連絡先</th><th>操作</th></tr>
+            </thead>
+            <tbody>
+                {% for c in customers %}
+                <tr>
+                    <td class="font-bold">{{ c.company_name }}</td>
+                    <td>{{ c.contact_name }}</td>
+                    <td>
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">
+                            <i class="fa-solid fa-envelope"></i> {{ c.email }}<br>
+                            <i class="fa-solid fa-phone"></i> {{ c.phone }}
+                        </div>
+                    </td>
+                    <td>
+                        {% if current_user.role == 'admin' %}
+                        <form action="{{ url_for('delete_customer', id=c.id) }}" method="POST" onsubmit="return confirm('削除しますか？')">
+                            <button type="submit" class="btn-action delete"><i class="fa-solid fa-trash"></i></button>
+                        </form>
+                        {% else %}
+                        <span class="text-muted" style="font-size: 0.7rem;">制限あり</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

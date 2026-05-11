@@ -7,7 +7,7 @@
     <div class="section-header">
         <h2>受注履歴一覧</h2>
         <div style="display: flex; gap: 12px;">
-            <a href="{{ url_for('add_order') }}" class="btn-primary"><i class="fa-solid fa-plus"></i> 新規受注登録</a>
+            <a href="{{ url_for('add_order') }}" class="btn-primary"><i class="fa-solid fa-plus"></i> 新規受注作成</a>
         </div>
     </div>
     
@@ -27,31 +27,47 @@
                     {% endfor %}
                 </select>
             </div>
-            <button type="submit" class="btn-secondary">検索実行</button>
+            <button type="submit" class="btn-secondary">検索</button>
         </form>
     </div>
 
     <table>
         <thead>
-            <tr><th>日時</th><th>商品名</th><th>数量</th><th>合計</th><th>状態</th><th>操作</th></tr>
+            <tr>
+                <th>日時</th>
+                <th>顧客名</th>
+                <th>商品名</th>
+                <th>合計金額</th>
+                <th>状態</th>
+                <th>操作</th>
+                <th>帳票</th>
+            </tr>
         </thead>
         <tbody>
             {% for o in orders %}
             <tr>
-                <td class="text-muted">{{ o.order_date[:16] }}</td>
-                <td class="font-bold">{{ o.name }}</td>
-                <td>{{ o.quantity }}</td>
+                <td style="font-size: 0.8rem;" class="text-muted">
+                    {{ o.order_date[:16] }}<br>
+                    <span style="font-size: 0.7rem;">担当: {{ o.created_by }}</span>
+                </td>
+                <td class="font-bold">{{ o.company_name or '個人/未登録' }}</td>
+                <td>{{ o.name }} (x{{ o.quantity }})</td>
                 <td class="font-bold">{{ "{:,}".format(o.total_price) }}</td>
                 <td><span class="badge status-{{ o.status }}">{{ o.status }}</span></td>
                 <td>
                     <form action="{{ url_for('update_status', id=o.id) }}" method="POST" style="display: flex; gap: 4px;">
-                        <select name="status" style="padding: 4px; font-size: 0.8rem; width: 100px;">
+                        <select name="status" style="padding: 4px; font-size: 0.75rem; width: 90px;">
                             {% for s in ["未請求", "請求済", "入金済", "キャンセル"] %}
                             <option value="{{ s }}" {{ 'selected' if o.status == s }}>{{ s }}</option>
                             {% endfor %}
                         </select>
-                        <button type="submit" class="btn-secondary small">更新</button>
+                        <button type="submit" class="btn-secondary small">更</button>
                     </form>
+                </td>
+                <td>
+                    <a href="{{ url_for('generate_pdf', id=o.id) }}" class="btn-action edit" title="PDF請求書">
+                        <i class="fa-solid fa-file-pdf"></i>
+                    </a>
                 </td>
             </tr>
             {% endfor %}

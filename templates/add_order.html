@@ -1,25 +1,41 @@
 {% extends "base.html" %}
-{% block title %}<h1>受注情報の入力</h1>{% endblock %}
+{% block title %}<h1>受注登録</h1>{% endblock %}
 {% block content %}
 <div style="max-width: 600px; margin: 0 auto;">
     <div class="card-section">
-        <div class="section-header"><h2><i class="fa-solid fa-cart-shopping"></i> 新規受注</h2></div>
+        <div class="section-header"><h2><i class="fa-solid fa-cart-shopping"></i> 新規受注作成</h2></div>
         <div style="padding: 32px;">
             <form method="POST">
+                <!-- 顧客選択 -->
+                <div class="form-group">
+                    <label>顧客を選択</label>
+                    <select name="customer_id" required>
+                        <option value="">-- 顧客を選択してください --</option>
+                        {% for c in customers %}
+                        <option value="{{ c.id }}">{{ c.company_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <!-- 商品選択 -->
                 <div class="form-group">
                     <label>商品を選択</label>
                     <select name="product_id" required>
-                        <option value="">-- 選択してください --</option>
+                        <option value="">-- 商品を選択してください --</option>
                         {% for p in products %}
                         <option value="{{ p.id }}">{{ p.name }} (在庫: {{ p.stock }})</option>
                         {% endfor %}
                     </select>
                 </div>
+                <!-- 数量 -->
                 <div class="form-group">
                     <label>数量</label>
                     <input type="number" name="quantity" required min="1" value="1">
                 </div>
-                <button type="submit" class="btn-primary" style="width: 100%; justify-content: center;">受注を確定する</button>
+                
+                <div style="margin-top: 24px; display: flex; gap: 12px;">
+                    <button type="submit" class="btn-primary" style="flex: 1; justify-content: center;">受注を確定する</button>
+                    <a href="{{ url_for('orders') }}" class="btn-secondary" style="flex: 0.5; justify-content: center;">キャンセル</a>
+                </div>
             </form>
         </div>
     </div>

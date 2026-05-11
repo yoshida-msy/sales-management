@@ -28,6 +28,9 @@
                     <li class="{{ 'active' if request.endpoint == 'products' or request.endpoint == 'edit_product' }}">
                         <a href="{{ url_for('products') }}"><i class="fa-solid fa-box"></i> 商品管理</a>
                     </li>
+                    <li class="{{ 'active' if request.endpoint == 'customers' }}">
+                        <a href="{{ url_for('customers') }}"><i class="fa-solid fa-users"></i> 顧客管理</a>
+                    </li>
                     <li class="{{ 'active' if request.endpoint == 'orders' }}">
                         <a href="{{ url_for('orders') }}"><i class="fa-solid fa-file-invoice-dollar"></i> 受注・請求管理</a>
                     </li>
@@ -38,7 +41,8 @@
             </nav>
             <div class="sidebar-footer">
                 <div class="user-info">
-                    <i class="fa-solid fa-user-circle"></i> {{ current_user.username }}
+                    <i class="fa-solid fa-user-circle"></i> {{ current_user.username }} 
+                    <span style="font-size: 0.7rem; background: #334155; padding: 2px 6px; border-radius: 4px; margin-left: 4px;">{{ current_user.role }}</span>
                 </div>
                 <a href="{{ url_for('logout') }}" class="btn-logout"><i class="fa-solid fa-right-from-bracket"></i> ログアウト</a>
             </div>
