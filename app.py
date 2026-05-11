@@ -100,22 +100,38 @@ def logout():
 @app.route("/")
 @login_required
 def index():
+    """
+    売上分析ダッシュボードを表示するメインルート
+    各指標の計算とグラフ用データの抽出を行います
+    """
     with get_db() as conn:
-        # KPIデータ
+        # --- KPIカード用のデータ取得 ---
+        
+        # 総売上: キャンセル以外の全受注の合計金額
         total_sales = conn.execute("SELECT SUM(total_price) FROM orders WHERE status != 'キャンセル'").fetchone()[0] or 0
+        
+        # 本日売上: 今日の日付の受注合計
         today_sales = conn.execute("SELECT SUM(total_price) FROM orders WHERE date(order_date) = date('now') AND status != 'キャンセル'").fetchone()[0] or 0
+        
+        # 未請求件数: ステータスが「未請求」のレコード数
         uninvoiced = conn.execute("SELECT COUNT(*) FROM orders WHERE status = '未請求'").fetchone()[0] or 0
+        
+        # 在庫不足: 在庫数が5未満の商品数
         low_stock = conn.execute("SELECT COUNT(*) FROM products WHERE stock < 5").fetchone()[0] or 0
         
-        # 月別売上グラフ (直近6ヶ月)
+        # --- グラフ用のデータ取得 ---
+        
+        # 1. 月別売上推移 (直近6ヶ月)
+        # strftimeで年月フォーマットにしてグループ化
         monthly = conn.execute("""
             SELECT strftime('%Y-%m', order_date) as m, SUM(total_price) as s 
             FROM orders GROUP BY m ORDER BY m DESC LIMIT 6
         """).fetchall()
+        # グラフ表示用に時系列を昇順に直す
         m_labels = [r["m"] for r in reversed(monthly)]
         m_values = [r["s"] for r in reversed(monthly)]
         
-        # 日別売上グラフ (直近7日間)
+        # 2. 日別売上グラフ (直近7日間)
         daily = conn.execute("""
             SELECT date(order_date) as d, SUM(total_price) as s 
             FROM orders WHERE order_date >= date('now', '-7 days')
@@ -124,17 +140,19 @@ def index():
         d_labels = [r["d"] for r in daily]
         d_values = [r["s"] for r in daily]
         
-        # ステータス別件数
+        # 3. ステータス別構成比
         status_data = conn.execute("SELECT status, COUNT(*) as c FROM orders GROUP BY status").fetchall()
         s_labels = [r["status"] for r in status_data]
         s_values = [r["c"] for r in status_data]
 
+        # 最近の受注5件を取得 (商品名を表示するためにJOINを使用)
         recent = conn.execute("""
             SELECT o.*, p.name FROM orders o JOIN products p ON o.product_id = p.id 
             ORDER BY o.order_date DESC LIMIT 5
         """).fetchall()
 
-    return render_template("dashboard.html", total_sales=total_sales, today_sales=today_sales, 
+    return render_template("dashboard.html", 
+                           total_sales=total_sales, today_sales=today_sales, 
                            uninvoiced=uninvoiced, low_stock=low_stock,
                            m_labels=m_labels, m_values=m_values,
                            d_labels=d_labels, d_values=d_values,
@@ -191,6 +209,17 @@ def orders():
     with get_db() as conn:
         items = conn.execute(query, params).fetchall()
     return render_template("orders.html", orders=items, q=q, status_filter=status)
+
+@app.route("/orders/update/<int:id>", methods=["POST"])
+@login_required
+def update_status(id):
+    """受注ステータスを更新する（例：未請求 -> 請求済）"""
+    new_status = request.form["status"]
+    with get_db() as conn:
+        conn.execute("UPDATE orders SET status = ? WHERE id = ?", (new_status, id))
+        conn.commit()
+    flash("受注ステータスを更新しました")
+    return redirect(url_for("orders"))
 
 @app.route("/orders/add", methods=["GET", "POST"])
 @login_required

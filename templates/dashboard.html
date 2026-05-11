@@ -3,8 +3,12 @@
 {% block title %}<h1>分析ダッシュボード</h1>{% endblock %}
 
 {% block content %}
-<!-- KPIカード -->
+<!-- 
+    KPIカードセクション 
+    売上総額、本日売上、未請求件数、在庫不足数をカード形式で表示します
+-->
 <div class="stats-grid">
+    <!-- 総売上 -->
     <div class="stat-card">
         <div class="stat-icon sales"><i class="fa-solid fa-coins"></i></div>
         <div class="stat-info">
@@ -12,6 +16,7 @@
             <p class="stat-value">{{ "{:,}".format(total_sales) }} 円</p>
         </div>
     </div>
+    <!-- 本日売上 -->
     <div class="stat-card">
         <div class="stat-icon today"><i class="fa-solid fa-calendar-day"></i></div>
         <div class="stat-info">
@@ -19,6 +24,7 @@
             <p class="stat-value">{{ "{:,}".format(today_sales) }} 円</p>
         </div>
     </div>
+    <!-- 未請求件数 -->
     <div class="stat-card">
         <div class="stat-icon task"><i class="fa-solid fa-clock"></i></div>
         <div class="stat-info">
@@ -26,6 +32,7 @@
             <p class="stat-value">{{ uninvoiced }} 件</p>
         </div>
     </div>
+    <!-- 在庫不足 -->
     <div class="stat-card">
         <div class="stat-icon stock"><i class="fa-solid fa-triangle-exclamation"></i></div>
         <div class="stat-info">
@@ -35,12 +42,17 @@
     </div>
 </div>
 
-<!-- グラフセクション -->
+<!-- 
+    グラフ表示セクション
+    Chart.jsを使用して月別・日別の売上を可視化します
+-->
 <div class="charts-row">
+    <!-- 月別売上グラフ -->
     <div class="chart-container card-section">
         <div class="section-header"><h2>月別売上推移</h2></div>
         <div class="chart-body"><canvas id="monthlyChart"></canvas></div>
     </div>
+    <!-- 日別売上グラフ -->
     <div class="chart-container card-section">
         <div class="section-header"><h2>日別売上 (直近7日)</h2></div>
         <div class="chart-body"><canvas id="dailyChart"></canvas></div>
@@ -48,10 +60,12 @@
 </div>
 
 <div class="charts-row secondary">
+    <!-- ステータス分布（円グラフ） -->
     <div class="chart-container card-section pie">
         <div class="section-header"><h2>受注ステータス分布</h2></div>
         <div class="chart-body"><canvas id="statusChart"></canvas></div>
     </div>
+    <!-- 最近の受注履歴（テーブル） -->
     <div class="table-container card-section recent">
         <div class="section-header">
             <h2>最近の受注履歴</h2>
@@ -75,35 +89,70 @@
     </div>
 </div>
 
+<!-- 
+    グラフ描画用スクリプト
+    Chart.jsライブラリを利用して、Python側から渡されたデータをグラフ化します
+-->
 <script>
-    // 月別売上グラフ
+    // 1. 月別売上推移 (折れ線グラフ)
     new Chart(document.getElementById('monthlyChart'), {
         type: 'line',
         data: {
             labels: {{ m_labels|tojson }},
-            datasets: [{ label: '売上 (円)', data: {{ m_values|tojson }}, borderColor: '#2563eb', backgroundColor: 'rgba(37, 99, 235, 0.1)', fill: true, tension: 0.4 }]
+            datasets: [{ 
+                label: '売上 (円)', 
+                data: {{ m_values|tojson }}, 
+                borderColor: '#2563eb', 
+                backgroundColor: 'rgba(37, 99, 235, 0.1)', 
+                fill: true, 
+                tension: 0.4 
+            }]
         },
-        options: { responsive: true, maintainAspectRatio: false }
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false } // 凡例は非表示
+            }
+        }
     });
 
-    // 日別売上グラフ
+    // 2. 日別売上グラフ (棒グラフ)
     new Chart(document.getElementById('dailyChart'), {
         type: 'bar',
         data: {
             labels: {{ d_labels|tojson }},
-            datasets: [{ label: '売上 (円)', data: {{ d_values|tojson }}, backgroundColor: '#3b82f6', borderRadius: 4 }]
+            datasets: [{ 
+                label: '売上 (円)', 
+                data: {{ d_values|tojson }}, 
+                backgroundColor: '#3b82f6', 
+                borderRadius: 4 
+            }]
         },
-        options: { responsive: true, maintainAspectRatio: false }
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false 
+        }
     });
 
-    // ステータス分布
+    // 3. ステータス分布 (ドーナツグラフ)
     new Chart(document.getElementById('statusChart'), {
         type: 'doughnut',
         data: {
             labels: {{ s_labels|tojson }},
-            datasets: [{ data: {{ s_values|tojson }}, backgroundColor: ['#fbbf24', '#3b82f6', '#10b981', '#ef4444'], borderWidth: 0 }]
+            datasets: [{ 
+                data: {{ s_values|tojson }}, 
+                backgroundColor: ['#fbbf24', '#3b82f6', '#10b981', '#ef4444'], 
+                borderWidth: 0 
+            }]
         },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            plugins: { 
+                legend: { position: 'bottom' } 
+            } 
+        }
     });
 </script>
 {% endblock %}
