@@ -250,6 +250,20 @@ def products():
     items = conn.execute("SELECT * FROM products WHERE name LIKE ? ORDER BY stock ASC", (f"%{q}%",)).fetchall()
     return render_template("products.html", products=items, q=q)
 
+@app.route("/products/edit/<int:id>", methods=["GET", "POST"])
+@login_required
+def edit_product(id):
+    """商品情報を編集する"""
+    conn = get_db()
+    if request.method == "POST":
+        conn.execute("UPDATE products SET name=?, price=?, stock=? WHERE id=?",
+                     (request.form["name"], request.form["price"], request.form["stock"], id))
+        conn.commit()
+        flash("商品情報を更新しました")
+        return redirect(url_for("products"))
+    item = conn.execute("SELECT * FROM products WHERE id = ?", (id,)).fetchone()
+    return render_template("edit_product.html", product=item)
+
 @app.route("/products/delete/<int:id>", methods=["POST"])
 @login_required
 def delete_product(id):
