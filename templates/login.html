@@ -4,10 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ログイン - SalesPro</title>
-    <!-- Google Fonts & Font Awesome -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Local CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="login-page">
@@ -19,7 +17,6 @@
                 <p class="text-muted">業務管理システムにログイン</p>
             </div>
 
-            <!-- フラッシュメッセージ（エラー表示用） -->
             {% with messages = get_flashed_messages() %}
               {% if messages %}
                 {% for message in messages %}
@@ -29,13 +26,13 @@
             {% endwith %}
 
             <form action="{{ url_for('login') }}" method="POST">
-                <div style="margin-bottom: 20px;">
-                    <label style="display: block; margin-bottom: 8px; font-weight: 500;">ユーザー名</label>
-                    <input type="text" name="username" required style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem;">
+                <div class="form-group">
+                    <label>ユーザー名</label>
+                    <input type="text" name="username" required>
                 </div>
-                <div style="margin-bottom: 32px;">
-                    <label style="display: block; margin-bottom: 8px; font-weight: 500;">パスワード</label>
-                    <input type="password" name="password" required style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem;">
+                <div class="form-group">
+                    <label>パスワード</label>
+                    <input type="password" name="password" required>
                 </div>
                 <button type="submit" class="btn-primary" style="width: 100%; justify-content: center; padding: 14px; font-size: 1rem;">
                     ログイン

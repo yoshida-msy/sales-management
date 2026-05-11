@@ -1,81 +1,61 @@
 {% extends "base.html" %}
 
-{% block title %}
-<h1>受注・請求管理</h1>
-{% endblock %}
+{% block title %}<h1>受注・請求管理</h1>{% endblock %}
 
 {% block content %}
-<section class="card-section">
+<div class="card-section">
     <div class="section-header">
-        <h2><i class="fa-solid fa-filter"></i> 絞り込み検索</h2>
+        <h2>受注履歴一覧</h2>
         <div style="display: flex; gap: 12px;">
-            <!-- url_for の中身を app.py の関数名 export_csv に合わせる -->
-            <a href="{{ url_for('export_csv') }}" class="btn-primary" style="background-color: #64748b;">
-                <i class="fa-solid fa-download"></i> CSV出力
-            </a>
-            <a href="{{ url_for('add_order') }}" class="btn-primary">
-                <i class="fa-solid fa-plus"></i> 新規受注
-            </a>
+            <a href="{{ url_for('add_order') }}" class="btn-primary"><i class="fa-solid fa-plus"></i> 新規受注登録</a>
         </div>
     </div>
-    <div style="padding: 20px; border-bottom: 1px solid var(--border-color);">
+    
+    <!-- 検索フィルタ -->
+    <div style="padding: 24px; border-bottom: 1px solid var(--border);">
         <form method="GET" style="display: flex; gap: 16px; align-items: flex-end;">
-            <div class="form-group" style="margin-bottom: 0; flex: 1;">
-                <label style="font-size: 0.75rem;">キーワード (商品名検索)</label>
-                <input type="text" name="q" value="{{ q }}" placeholder="商品名で検索...">
+            <div style="flex: 1;">
+                <label style="display: block; font-size: 0.75rem; margin-bottom: 4px;">商品名検索</label>
+                <input type="text" name="q" value="{{ q }}" placeholder="商品名を入力...">
             </div>
-            <div class="form-group" style="margin-bottom: 0; width: 200px;">
-                <label style="font-size: 0.75rem;">ステータス</label>
+            <div style="width: 200px;">
+                <label style="display: block; font-size: 0.75rem; margin-bottom: 4px;">ステータス</label>
                 <select name="status">
                     <option value="">すべて</option>
-                    <option value="未請求" {{ 'selected' if status_filter == '未請求' }}>未請求</option>
-                    <option value="請求済" {{ 'selected' if status_filter == '請求済' }}>請求済</option>
-                    <option value="入金済" {{ 'selected' if status_filter == '入金済' }}>入金済</option>
-                    <option value="キャンセル" {{ 'selected' if status_filter == 'キャンセル' }}>キャンセル</option>
+                    {% for s in ["未請求", "請求済", "入金済", "キャンセル"] %}
+                    <option value="{{ s }}" {{ 'selected' if status_filter == s }}>{{ s }}</option>
+                    {% endfor %}
                 </select>
             </div>
-            <button type="submit" class="btn-primary" style="height: 42px;">検索</button>
-            <a href="{{ url_for('orders') }}" style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">リセット</a>
+            <button type="submit" class="btn-secondary">検索実行</button>
         </form>
     </div>
-    
-    <div class="table-responsive">
-        <table>
-            <thead>
-                <tr>
-                    <th>日時</th>
-                    <th>商品名</th>
-                    <th>数量</th>
-                    <th>合計</th>
-                    <th>現在の状態</th>
-                    <th>状態を更新</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for order in orders %}
-                <tr>
-                    <td style="font-size: 0.85rem; color: var(--text-muted);">{{ order.order_date }}</td>
-                    <!-- app.py の JOIN クエリでは p.name as name ではなく p.name そのまま取得している場合を考慮 -->
-                    <td style="font-weight: 500;">{{ order.name }}</td>
-                    <td>{{ order.quantity }}</td>
-                    <td style="font-weight: 600;">{{ "{:,}".format(order.total_price) }} 円</td>
-                    <td><span class="badge status-{{ order.status }}">{{ order.status }}</span></td>
-                    <td>
-                        <!-- url_for の引数名を app.py の引数名 id に合わせる -->
-                        <form action="{{ url_for('update_status', id=order.id) }}" method="POST" style="display: flex; gap: 4px;">
-                            <select name="status" style="padding: 4px; font-size: 0.8rem; border-radius: 4px; width: 100px;">
-                                <option value="未請求" {{ 'selected' if order.status == '未請求' }}>未請求</option>
-                                <option value="請求済" {{ 'selected' if order.status == '請求済' }}>請求済</option>
-                                <option value="入金済" {{ 'selected' if order.status == '入金済' }}>入金済</option>
-                                <option value="キャンセル" {{ 'selected' if order.status == 'キャンセル' }}>キャンセル</option>
-                            </select>
-                            <button type="submit" class="btn-primary" style="padding: 4px 8px; font-size: 0.75rem;">更</button>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</section>
+
+    <table>
+        <thead>
+            <tr><th>日時</th><th>商品名</th><th>数量</th><th>合計</th><th>状態</th><th>操作</th></tr>
+        </thead>
+        <tbody>
+            {% for o in orders %}
+            <tr>
+                <td class="text-muted">{{ o.order_date[:16] }}</td>
+                <td class="font-bold">{{ o.name }}</td>
+                <td>{{ o.quantity }}</td>
+                <td class="font-bold">{{ "{:,}".format(o.total_price) }}</td>
+                <td><span class="badge status-{{ o.status }}">{{ o.status }}</span></td>
+                <td>
+                    <form action="{{ url_for('update_status', id=o.id) }}" method="POST" style="display: flex; gap: 4px;">
+                        <select name="status" style="padding: 4px; font-size: 0.8rem; width: 100px;">
+                            {% for s in ["未請求", "請求済", "入金済", "キャンセル"] %}
+                            <option value="{{ s }}" {{ 'selected' if o.status == s }}>{{ s }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn-secondary small">更新</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 {% endblock %}

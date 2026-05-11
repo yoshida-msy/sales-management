@@ -1,51 +1,27 @@
 {% extends "base.html" %}
-
-{% block title %}
-<h1>新規受注登録</h1>
-{% endblock %}
-
+{% block title %}<h1>受注情報の入力</h1>{% endblock %}
 {% block content %}
-<div class="form-container">
-    <section class="card-section">
-        <div class="section-header">
-            <h2><i class="fa-solid fa-cart-shopping"></i> 受注情報の入力</h2>
-        </div>
+<div style="max-width: 600px; margin: 0 auto;">
+    <div class="card-section">
+        <div class="section-header"><h2><i class="fa-solid fa-cart-shopping"></i> 新規受注</h2></div>
         <div style="padding: 32px;">
             <form method="POST">
                 <div class="form-group">
-                    <label for="product_id">商品を選択</label>
-                    <select name="product_id" id="product_id" required>
-                        <option value="">-- 商品を検索・選択 --</option>
-                        {% for product in products %}
-                        <option value="{{ product.id }}">
-                            {{ product.name }} (単価: {{ "{:,}".format(product.price) }}円 / 在庫: {{ product.stock }})
-                        </option>
+                    <label>商品を選択</label>
+                    <select name="product_id" required>
+                        <option value="">-- 選択してください --</option>
+                        {% for p in products %}
+                        <option value="{{ p.id }}">{{ p.name }} (在庫: {{ p.stock }})</option>
                         {% endfor %}
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="quantity">数量</label>
-                    <input type="number" name="quantity" id="quantity" required min="1" value="1">
+                    <label>数量</label>
+                    <input type="number" name="quantity" required min="1" value="1">
                 </div>
-                
-                <div style="background-color: #f8fafc; padding: 16px; border-radius: 8px; margin-bottom: 24px; border: 1px dashed var(--border-color);">
-                    <ul style="padding-left: 20px; font-size: 0.85rem; color: var(--text-muted); line-height: 1.8;">
-                        <li>確定後、商品の在庫が自動的に減算されます。</li>
-                        <li>合計金額は単価×数量で自動算出されます。</li>
-                        <li>初期状態は「未請求」として登録されます。</li>
-                    </ul>
-                </div>
-
-                <div style="display: flex; gap: 12px;">
-                    <button type="submit" class="btn-primary" style="flex: 1; justify-content: center;">
-                        <i class="fa-solid fa-check-circle"></i> 受注を確定する
-                    </button>
-                    <a href="{{ url_for('orders') }}" class="btn-primary" style="background-color: var(--text-muted); flex: 0.5; justify-content: center;">
-                        キャンセル
-                    </a>
-                </div>
+                <button type="submit" class="btn-primary" style="width: 100%; justify-content: center;">受注を確定する</button>
             </form>
         </div>
-    </section>
+    </div>
 </div>
 {% endblock %}

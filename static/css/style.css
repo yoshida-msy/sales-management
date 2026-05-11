@@ -91,6 +91,12 @@ tr:hover td { background: #f1f5f9; }
 .status-入金済 { background: #ecfdf5; color: #065f46; }
 .status-キャンセル { background: #fef2f2; color: #991b1b; }
 
+/* Forms */
+.form-group { margin-bottom: 20px; }
+.form-group label { display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 8px; color: var(--text-main); }
+input, select { width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; background: var(--white); transition: 0.2s; }
+input:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+
 /* Login Page */
 .login-page { background: var(--sidebar-bg); display: flex; align-items: center; justify-content: center; height: 100vh; }
 .login-container { width: 100%; max-width: 400px; padding: 20px; }

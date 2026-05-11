@@ -1,40 +1,26 @@
 {% extends "base.html" %}
-
-{% block title %}
-<h1>商品情報の編集</h1>
-{% endblock %}
-
+{% block title %}<h1>商品情報の編集</h1>{% endblock %}
 {% block content %}
-<div class="form-container">
-    <section class="card-section">
-        <div class="section-header">
-            <h2><i class="fa-solid fa-pen-to-square"></i> 商品ID: #{{ product.id }} の編集</h2>
-        </div>
+<div style="max-width: 600px; margin: 0 auto;">
+    <div class="card-section">
+        <div class="section-header"><h2>商品ID: #{{ product.id }}</h2></div>
         <div style="padding: 32px;">
             <form method="POST">
                 <div class="form-group">
-                    <label for="name">商品名</label>
-                    <input type="text" name="name" id="name" value="{{ product.name }}" required>
+                    <label>商品名</label>
+                    <input type="text" name="name" value="{{ product.name }}" required>
                 </div>
                 <div class="form-group">
-                    <label for="price">単価 (円)</label>
-                    <input type="number" name="price" id="price" value="{{ product.price }}" required min="0">
+                    <label>単価 (円)</label>
+                    <input type="number" name="price" value="{{ product.price }}" required min="0">
                 </div>
                 <div class="form-group">
-                    <label for="stock">在庫数</label>
-                    <input type="number" name="stock" id="stock" value="{{ product.stock }}" required min="0">
+                    <label>在庫数</label>
+                    <input type="number" name="stock" value="{{ product.stock }}" required min="0">
                 </div>
-                
-                <div style="display: flex; gap: 12px; margin-top: 24px;">
-                    <button type="submit" class="btn-primary" style="flex: 1; justify-content: center;">
-                        <i class="fa-solid fa-save"></i> 変更を保存する
-                    </button>
-                    <a href="{{ url_for('products') }}" class="btn-primary" style="background-color: var(--text-muted); flex: 0.5; justify-content: center;">
-                        キャンセル
-                    </a>
-                </div>
+                <button type="submit" class="btn-primary" style="width: 100%; justify-content: center;">変更を保存</button>
             </form>
         </div>
-    </section>
+    </div>
 </div>
 {% endblock %}
