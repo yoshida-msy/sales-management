@@ -1,23 +1,21 @@
 {% extends "base.html" %}
 
-{% block page_title %}
-<h1>売上分析ダッシュボード</h1>
-{% endblock %}
+{% block title %}<h1>分析ダッシュボード</h1>{% endblock %}
 
 {% block content %}
-<!-- KPIカードセクション -->
+<!-- KPIカード -->
 <div class="stats-grid">
     <div class="stat-card">
-        <div class="stat-icon sales"><i class="fa-solid fa-yen-sign"></i></div>
+        <div class="stat-icon sales"><i class="fa-solid fa-coins"></i></div>
         <div class="stat-info">
-            <h3>総売上金額</h3>
+            <h3>総売上</h3>
             <p class="stat-value">{{ "{:,}".format(total_sales) }} 円</p>
         </div>
     </div>
     <div class="stat-card">
         <div class="stat-icon today"><i class="fa-solid fa-calendar-day"></i></div>
         <div class="stat-info">
-            <h3>本日の売上</h3>
+            <h3>本日売上</h3>
             <p class="stat-value">{{ "{:,}".format(today_sales) }} 円</p>
         </div>
     </div>
@@ -31,122 +29,81 @@
     <div class="stat-card">
         <div class="stat-icon stock"><i class="fa-solid fa-triangle-exclamation"></i></div>
         <div class="stat-info">
-            <h3>在庫不足商品</h3>
+            <h3>在庫不足</h3>
             <p class="stat-value text-danger">{{ low_stock }} 点</p>
         </div>
     </div>
 </div>
 
 <!-- グラフセクション -->
-<div class="charts-container">
-    <div class="chart-row main-charts">
-        <div class="chart-card">
-            <h3><i class="fa-solid fa-chart-line"></i> 月別売上推移</h3>
-            <canvas id="monthlyChart"></canvas>
-        </div>
-        <div class="chart-card">
-            <h3><i class="fa-solid fa-chart-bar"></i> 直近7日間の売上</h3>
-            <canvas id="dailyChart"></canvas>
-        </div>
+<div class="charts-row">
+    <div class="chart-container card-section">
+        <div class="section-header"><h2>月別売上推移</h2></div>
+        <div class="chart-body"><canvas id="monthlyChart"></canvas></div>
     </div>
-    <div class="chart-row sub-charts">
-        <div class="chart-card">
-            <h3><i class="fa-solid fa-chart-pie"></i> 受注ステータス比率</h3>
-            <canvas id="statusChart"></canvas>
-        </div>
-        <div class="chart-card table-card">
-            <h3><i class="fa-solid fa-list-ul"></i> 直近の受注履歴</h3>
-            <table>
-                <thead>
-                    <tr><th>日時</th><th>商品</th><th>合計</th><th>状態</th></tr>
-                </thead>
-                <tbody>
-                    {% for o in recent %}
-                    <tr>
-                        <td style="font-size: 0.8rem;">{{ o.order_date }}</td>
-                        <td style="font-weight: 500;">{{ o.name }}</td>
-                        <td>{{ "{:,}".format(o.total_price) }}</td>
-                        <td><span class="badge status-{{ o.status }}">{{ o.status }}</span></td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+    <div class="chart-container card-section">
+        <div class="section-header"><h2>日別売上 (直近7日)</h2></div>
+        <div class="chart-body"><canvas id="dailyChart"></canvas></div>
     </div>
 </div>
 
-<!-- Chart.js 設定 -->
+<div class="charts-row secondary">
+    <div class="chart-container card-section pie">
+        <div class="section-header"><h2>受注ステータス分布</h2></div>
+        <div class="chart-body"><canvas id="statusChart"></canvas></div>
+    </div>
+    <div class="table-container card-section recent">
+        <div class="section-header">
+            <h2>最近の受注履歴</h2>
+            <a href="{{ url_for('orders') }}" class="btn-text">すべて表示 <i class="fa-solid fa-arrow-right"></i></a>
+        </div>
+        <table>
+            <thead>
+                <tr><th>日時</th><th>商品</th><th>合計</th><th>状態</th></tr>
+            </thead>
+            <tbody>
+                {% for o in recent %}
+                <tr>
+                    <td class="text-muted">{{ o.order_date }}</td>
+                    <td class="font-bold">{{ o.name }}</td>
+                    <td class="font-bold">{{ "{:,}".format(o.total_price) }}</td>
+                    <td><span class="badge status-{{ o.status }}">{{ o.status }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
 <script>
-    // 1. 月別売上グラフ
+    // 月別売上グラフ
     new Chart(document.getElementById('monthlyChart'), {
         type: 'line',
         data: {
             labels: {{ m_labels|tojson }},
-            datasets: [{
-                label: '月間売上 (円)',
-                data: {{ m_values|tojson }},
-                borderColor: '#2563eb',
-                backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                fill: true,
-                tension: 0.4
-            }]
+            datasets: [{ label: '売上 (円)', data: {{ m_values|tojson }}, borderColor: '#2563eb', backgroundColor: 'rgba(37, 99, 235, 0.1)', fill: true, tension: 0.4 }]
         },
         options: { responsive: true, maintainAspectRatio: false }
     });
 
-    // 2. 日別売上グラフ
+    // 日別売上グラフ
     new Chart(document.getElementById('dailyChart'), {
         type: 'bar',
         data: {
             labels: {{ d_labels|tojson }},
-            datasets: [{
-                label: '日別売上 (円)',
-                data: {{ d_values|tojson }},
-                backgroundColor: '#3b82f6',
-                borderRadius: 4
-            }]
+            datasets: [{ label: '売上 (円)', data: {{ d_values|tojson }}, backgroundColor: '#3b82f6', borderRadius: 4 }]
         },
         options: { responsive: true, maintainAspectRatio: false }
     });
 
-    // 3. ステータス比率
+    // ステータス分布
     new Chart(document.getElementById('statusChart'), {
         type: 'doughnut',
         data: {
             labels: {{ s_labels|tojson }},
-            datasets: [{
-                data: {{ s_values|tojson }},
-                backgroundColor: ['#fbbf24', '#3b82f6', '#10b981', '#ef4444'],
-                borderWidth: 0
-            }]
+            datasets: [{ data: {{ s_values|tojson }}, backgroundColor: ['#fbbf24', '#3b82f6', '#10b981', '#ef4444'], borderWidth: 0 }]
         },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
     });
 </script>
-
-<style>
-    .charts-container { display: flex; flex-direction: column; gap: 24px; }
-    .chart-row { display: grid; gap: 24px; }
-    .main-charts { grid-template-columns: 1.5fr 1fr; }
-    .sub-charts { grid-template-columns: 1fr 1.5fr; }
-    
-    .chart-card {
-        background: white; border-radius: 12px; padding: 20px;
-        border: 1px solid var(--border-color); box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        height: 350px; display: flex; flex-direction: column;
-    }
-    .chart-card h3 { font-size: 1rem; margin-bottom: 15px; color: var(--text-muted); }
-    .chart-card canvas { flex: 1; }
-    
-    .table-card { overflow-y: auto; }
-    
-    @media (max-width: 1024px) {
-        .main-charts, .sub-charts { grid-template-columns: 1fr; }
-    }
-    
-    .stat-icon.sales { background: #dbeafe; color: #1e40af; }
-    .stat-icon.today { background: #d1fae5; color: #065f46; }
-    .stat-icon.task { background: #fef3c7; color: #92400e; }
-    .stat-icon.stock { background: #fee2e2; color: #991b1b; }
-</style>
 {% endblock %}

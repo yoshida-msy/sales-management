@@ -4,11 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SalesPro - 業務管理システム</title>
+    <!-- Google Fonts & Font Awesome -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <!-- グラフライブラリ Chart.js の読み込み -->
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Local CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <div class="app-container">
@@ -21,35 +23,35 @@
             <nav class="sidebar-nav">
                 <ul>
                     <li class="{{ 'active' if request.endpoint == 'index' }}">
-                        <a href="{{ url_for('index') }}"><i class="fa-solid fa-gauge-high"></i> ダッシュボード</a>
+                        <a href="{{ url_for('index') }}"><i class="fa-solid fa-chart-pie"></i> ダッシュボード</a>
                     </li>
                     <li class="{{ 'active' if request.endpoint == 'products' or request.endpoint == 'edit_product' }}">
                         <a href="{{ url_for('products') }}"><i class="fa-solid fa-box"></i> 商品管理</a>
                     </li>
                     <li class="{{ 'active' if request.endpoint == 'orders' }}">
-                        <a href="{{ url_for('orders') }}"><i class="fa-solid fa-file-invoice"></i> 受注管理</a>
+                        <a href="{{ url_for('orders') }}"><i class="fa-solid fa-file-invoice-dollar"></i> 受注・請求管理</a>
                     </li>
                     <li class="{{ 'active' if request.endpoint == 'add_order' }}">
-                        <a href="{{ url_for('add_order') }}"><i class="fa-solid fa-plus-circle"></i> 新規受注登録</a>
+                        <a href="{{ url_for('add_order') }}"><i class="fa-solid fa-circle-plus"></i> 受注登録</a>
                     </li>
                 </ul>
             </nav>
             <div class="sidebar-footer">
-                <a href="{{ url_for('export_orders') }}" class="btn-export">
-                    <i class="fa-solid fa-file-csv"></i> 全データ出力(CSV)
-                </a>
+                <div class="user-info">
+                    <i class="fa-solid fa-user-circle"></i> {{ current_user.username }}
+                </div>
+                <a href="{{ url_for('logout') }}" class="btn-logout"><i class="fa-solid fa-right-from-bracket"></i> ログアウト</a>
             </div>
         </aside>
 
         <!-- メインコンテンツ -->
         <div class="main-wrapper">
             <header class="top-bar">
-                <div class="page-info">
-                    {% block page_title %}{% endblock %}
+                <div class="page-title">
+                    {% block title %}{% endblock %}
                 </div>
-                <div class="user-profile">
-                    <span class="badge status-入金済">システム稼働中</span>
-                    <i class="fa-solid fa-user-circle"></i> Guest
+                <div class="top-actions">
+                    <a href="{{ url_for('export_csv') }}" class="btn-secondary small"><i class="fa-solid fa-download"></i> CSV出力</a>
                 </div>
             </header>
 
@@ -57,9 +59,7 @@
                 {% with messages = get_flashed_messages() %}
                   {% if messages %}
                     {% for message in messages %}
-                      <div class="flash-message">
-                          <i class="fa-solid fa-circle-check"></i> {{ message }}
-                      </div>
+                      <div class="flash-message">{{ message }}</div>
                     {% endfor %}
                   {% endif %}
                 {% endwith %}

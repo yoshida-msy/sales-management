@@ -1,11 +1,18 @@
+/* 
+   ========================================
+   SalesPro Premium UI - Professional Style
+   ========================================
+*/
+
 :root {
     --primary: #2563eb;
     --primary-dark: #1d4ed8;
-    --sidebar-bg: #1e293b;
+    --sidebar-bg: #0f172a;
     --content-bg: #f8fafc;
-    --text-main: #0f172a;
-    --text-muted: #64748b;
+    --white: #ffffff;
     --border: #e2e8f0;
+    --text-main: #1e293b;
+    --text-muted: #64748b;
     --success: #10b981;
     --warning: #f59e0b;
     --danger: #ef4444;
@@ -14,90 +21,91 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Inter', sans-serif; background: var(--content-bg); color: var(--text-main); }
 
-/* ログインページ */
-.login-page { background: #0f172a; display: flex; align-items: center; justify-content: center; height: 100vh; }
-.login-container { width: 100%; max-width: 400px; padding: 20px; }
-.login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
-.login-header { text-align: center; margin-bottom: 30px; }
-.login-header h1 { font-size: 1.5rem; margin-top: 10px; }
-.error-msg { color: var(--danger); background: #fee2e2; padding: 10px; border-radius: 6px; margin-bottom: 20px; font-size: 0.85rem; }
-.login-footer { text-align: center; margin-top: 20px; color: var(--text-muted); font-size: 0.8rem; }
-
-/* レイアウト */
+/* Layout */
 .app-container { display: flex; min-height: 100vh; }
-.sidebar { width: 260px; background: var(--sidebar-bg); color: white; position: fixed; height: 100vh; display: flex; flex-direction: column; }
-.sidebar-header { padding: 30px 24px; display: flex; align-items: center; gap: 12px; }
-.logo-icon { color: var(--primary); font-size: 1.5rem; }
-.sidebar-nav { flex: 1; padding: 10px; }
+.sidebar { width: 260px; background: var(--sidebar-bg); color: white; position: fixed; height: 100vh; display: flex; flex-direction: column; transition: all 0.3s; z-index: 100; }
+.sidebar-header { padding: 32px 24px; display: flex; align-items: center; gap: 12px; }
+.logo-icon { font-size: 1.75rem; color: var(--primary); }
+.logo-text { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.5px; }
+
+.sidebar-nav { flex: 1; padding: 12px; }
 .sidebar-nav ul { list-style: none; }
-.sidebar-nav a { color: #cbd5e1; text-decoration: none; padding: 12px 16px; display: flex; align-items: center; gap: 12px; border-radius: 8px; transition: 0.2s; }
+.sidebar-nav a { color: #94a3b8; text-decoration: none; padding: 12px 16px; display: flex; align-items: center; gap: 12px; border-radius: 8px; transition: 0.2s; margin-bottom: 4px; }
 .sidebar-nav li.active a, .sidebar-nav a:hover { background: rgba(255,255,255,0.1); color: white; }
-.sidebar-nav li.active a { background: var(--primary); }
+.sidebar-nav li.active a { background: var(--primary); color: white; }
+
 .sidebar-footer { padding: 20px; border-top: 1px solid rgba(255,255,255,0.1); }
+.user-info { font-size: 0.85rem; color: #94a3b8; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.btn-logout { display: block; background: #334155; color: white; text-align: center; padding: 10px; border-radius: 6px; text-decoration: none; font-size: 0.85rem; transition: 0.2s; }
+.btn-logout:hover { background: var(--danger); }
 
-.main-wrapper { flex: 1; margin-left: 260px; }
-.top-bar { height: 64px; background: white; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; padding: 0 32px; position: sticky; top: 0; z-index: 10; }
-.content { padding: 32px; }
+.main-wrapper { flex: 1; margin-left: 260px; display: flex; flex-direction: column; }
+.top-bar { height: 72px; background: var(--white); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; padding: 0 40px; position: sticky; top: 0; z-index: 90; }
+.page-title h1 { font-size: 1.25rem; font-weight: 700; }
 
-/* カード & セクション */
-.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 24px; margin-bottom: 32px; }
-.stat-card { background: white; padding: 24px; border-radius: 12px; border: 1px solid var(--border); display: flex; align-items: center; gap: 16px; }
-.stat-icon { width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; }
-.stat-icon.sales { background: #dbeafe; color: #1e40af; }
-.stat-icon.today { background: #d1fae5; color: #065f46; }
-.stat-icon.task { background: #fef3c7; color: #92400e; }
-.stat-icon.stock { background: #fee2e2; color: #991b1b; }
-.stat-value { font-size: 1.4rem; font-weight: 700; margin-top: 4px; }
+.content { padding: 40px; }
 
+/* Dashboard Cards */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; margin-bottom: 32px; }
+.stat-card { background: var(--white); padding: 24px; border-radius: 16px; border: 1px solid var(--border); display: flex; align-items: center; gap: 16px; transition: transform 0.2s; }
+.stat-card:hover { transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+.stat-icon { width: 52px; height: 52px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
+.stat-icon.sales { background: #eff6ff; color: #1e40af; }
+.stat-icon.today { background: #ecfdf5; color: #065f46; }
+.stat-icon.task { background: #fffbeb; color: #92400e; }
+.stat-icon.stock { background: #fef2f2; color: #991b1b; }
+.stat-value { font-size: 1.5rem; font-weight: 800; margin-top: 4px; }
+.stat-info h3 { font-size: 0.875rem; color: var(--text-muted); font-weight: 500; }
+
+/* Charts & Sections */
 .charts-row { display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; margin-bottom: 32px; }
-.chart-container { background: white; border-radius: 12px; border: 1px solid var(--border); }
-.chart-wrapper { padding: 20px; height: 300px; }
+.charts-row.secondary { grid-template-columns: 1fr 1.5fr; }
+.chart-container { background: var(--white); padding: 24px; border-radius: 16px; border: 1px solid var(--border); }
+.chart-body { height: 300px; padding-top: 16px; }
 
-.card-section { background: white; border-radius: 12px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 32px; }
-.section-header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.card-section { background: var(--white); border-radius: 16px; border: 1px solid var(--border); overflow: hidden; }
+.section-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.section-header h2 { font-size: 1rem; font-weight: 700; color: var(--text-main); }
 
-/* テーブル */
+/* Tables */
 table { width: 100%; border-collapse: collapse; }
-th { background: #f8fafc; padding: 12px 24px; text-align: left; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; }
-td { padding: 16px 24px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+th { background: #f8fafc; padding: 14px 24px; text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+td { padding: 16px 24px; border-bottom: 1px solid var(--border); font-size: 0.95rem; }
+tr:last-child td { border-bottom: none; }
 tr:hover td { background: #f1f5f9; }
 
-/* ボタン & バッジ */
-.btn-primary { background: var(--primary); color: white; padding: 10px 20px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; }
+/* Buttons & Badges */
+.btn-primary { background: var(--primary); color: white; padding: 10px 20px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; }
 .btn-primary:hover { background: var(--primary-dark); }
-.btn-primary.small { padding: 6px 12px; font-size: 0.8rem; }
-.btn-danger { background: var(--danger); }
+.btn-secondary { background: white; color: var(--text-main); border: 1px solid var(--border); padding: 8px 16px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; }
+.btn-secondary:hover { background: #f1f5f9; }
+.btn-secondary.small { font-size: 0.85rem; padding: 6px 12px; }
 
-.badge { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
-.status-未請求 { background: #fef3c7; color: #92400e; }
-.status-請求済 { background: #dbeafe; color: #1e40af; }
-.status-入金済 { background: #d1fae5; color: #065f46; }
+.btn-action { width: 32px; height: 32px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); text-decoration: none; transition: 0.2s; }
+.btn-action.edit { color: var(--primary); background: #eff6ff; }
+.btn-action.delete { color: var(--danger); background: #fef2f2; border: none; cursor: pointer; }
 
-/* フォーム */
-.form-group { margin-bottom: 20px; }
-.form-group label { display: block; margin-bottom: 8px; font-size: 0.85rem; font-weight: 500; }
-.form-group input, .form-group select { width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; }
+.badge { padding: 4px 12px; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; }
+.status-未請求 { background: #fff7ed; color: #9a3412; }
+.status-請求済 { background: #eff6ff; color: #1e40af; }
+.status-入金済 { background: #ecfdf5; color: #065f46; }
+.status-キャンセル { background: #fef2f2; color: #991b1b; }
+
+/* Login Page */
+.login-page { background: var(--sidebar-bg); display: flex; align-items: center; justify-content: center; height: 100vh; }
+.login-container { width: 100%; max-width: 400px; padding: 20px; }
+.login-card { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+.login-header { text-align: center; margin-bottom: 32px; }
+.login-header h1 { font-size: 1.75rem; margin-top: 12px; color: var(--sidebar-bg); }
+
+/* Utilities */
+.text-danger { color: var(--danger) !important; }
+.text-muted { color: var(--text-muted); }
+.font-bold { font-weight: 600; }
+.flash-message { background: #ecfdf5; color: #065f46; padding: 16px; border-radius: 12px; margin-bottom: 24px; border: 1px solid #d1fae0; }
 
 @media (max-width: 1024px) {
-    .sidebar { width: 0; display: none; }
+    .sidebar { width: 0; transform: translateX(-100%); }
     .main-wrapper { margin-left: 0; }
     .charts-row { grid-template-columns: 1fr; }
-}
-
-/* 認証系追加スタイル */
-.user-info-side { color: #94a3b8; font-size: 0.85rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-.btn-logout { 
-    display: block; text-align: center; background: #e74c3c; color: white; padding: 10px; border-radius: 6px; 
-    text-decoration: none; font-size: 0.85rem; font-weight: 600; transition: background 0.2s;
-}
-.btn-logout:hover { background: #c0392b; }
-.btn-export {
-    display: block;
-    text-align: center;
-    background: #334155;
-    color: white;
-    padding: 10px;
-    border-radius: 6px;
-    text-decoration: none;
-    font-size: 0.85rem;
 }
