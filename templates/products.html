@@ -3,6 +3,37 @@
 {% block title %}<h1>商品管理</h1>{% endblock %}
 
 {% block content %}
+<!-- 検索・絞り込みフォーム -->
+<div class="card-section" style="margin-bottom: 24px;">
+    <div class="section-header">
+        <h2><i class="fa-solid fa-filter"></i> 検索・絞り込み</h2>
+    </div>
+    <div style="padding: 20px;">
+        <form method="GET" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; align-items: flex-end;">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>商品名</label>
+                <input type="text" name="q" value="{{ q }}" placeholder="商品名を入力...">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>最小価格</label>
+                <input type="number" name="min_price" value="{{ min_price }}" placeholder="0">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>最大価格</label>
+                <input type="number" name="max_price" value="{{ max_price }}" placeholder="100000">
+            </div>
+            <div class="form-group" style="margin-bottom: 0; display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" name="low_stock" value="1" {{ 'checked' if low_stock }} style="width: auto;">
+                <label style="margin-bottom: 0;">在庫不足のみ</label>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button type="submit" class="btn-primary" style="flex: 1;">検索</button>
+                <a href="{{ url_for('products') }}" class="btn-secondary" style="flex: 1; justify-content: center; text-align: center;">クリア</a>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div class="stats-grid" style="grid-template-columns: 1fr 2fr;">
     <!-- 新規商品登録 -->
     <div class="card-section">
@@ -29,11 +60,7 @@
     <!-- 商品一覧 -->
     <div class="card-section">
         <div class="section-header">
-            <h2>在庫一覧</h2>
-            <form method="GET" style="display: flex; gap: 8px;">
-                <input type="text" name="q" value="{{ q }}" placeholder="商品名検索..." style="width: 180px;">
-                <button type="submit" class="btn-secondary small"><i class="fa-solid fa-search"></i></button>
-            </form>
+            <h2>商品一覧 ({{ products|length }}件)</h2>
         </div>
         <table>
             <thead>
@@ -51,13 +78,22 @@
                     <td>
                         <div style="display: flex; gap: 8px;">
                             <a href="{{ url_for('edit_product', id=p.id) }}" class="btn-action edit"><i class="fa-solid fa-pen"></i></a>
+                            {% if current_user.role == 'admin' %}
                             <form action="{{ url_for('delete_product', id=p.id) }}" method="POST" onsubmit="return confirm('削除しますか？')">
                                 <button type="submit" class="btn-action delete"><i class="fa-solid fa-trash"></i></button>
                             </form>
+                            {% endif %}
                         </div>
                     </td>
                 </tr>
                 {% endfor %}
+                {% if not products %}
+                <tr>
+                    <td colspan="4" style="text-align: center; padding: 40px;" class="text-muted">
+                        該当する商品が見つかりませんでした。
+                    </td>
+                </tr>
+                {% endif %}
             </tbody>
         </table>
     </div>

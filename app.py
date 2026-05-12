@@ -236,9 +236,34 @@ def products():
         conn.commit()
         flash("商品を登録しました")
         return redirect(url_for("products"))
+    
+    # --- 検索・絞り込みロジック ---
     q = request.args.get("q", "")
-    items = conn.execute("SELECT * FROM products WHERE name LIKE ? ORDER BY stock ASC", (f"%{q}%",)).fetchall()
-    return render_template("products.html", products=items, q=q)
+    low_stock = request.args.get("low_stock", "")
+    min_price = request.args.get("min_price", "")
+    max_price = request.args.get("max_price", "")
+
+    query = "SELECT * FROM products WHERE 1=1"
+    params = []
+
+    if q:
+        query += " AND name LIKE ?"
+        params.append(f"%{q}%")
+    if low_stock:
+        query += " AND stock < 5"
+    if min_price:
+        query += " AND price >= ?"
+        params.append(min_price)
+    if max_price:
+        query += " AND price <= ?"
+        params.append(max_price)
+
+    query += " ORDER BY stock ASC"
+    items = conn.execute(query, params).fetchall()
+    
+    return render_template("products.html", products=items, 
+                           q=q, low_stock=low_stock, 
+                           min_price=min_price, max_price=max_price)
 
 @app.route("/products/edit/<int:id>", methods=["GET", "POST"])
 @login_required
@@ -270,22 +295,54 @@ def delete_product(id):
 @app.route("/orders")
 @login_required
 def orders():
-    q = request.args.get("q", "")
-    status = request.args.get("status", "")
+    # --- 検索・絞り込みパラメータの取得 ---
+    q = request.args.get("q", "") # 商品名
+    customer_q = request.args.get("customer_q", "") # 顧客名
+    status = request.args.get("status", "") # ステータス
+    date_from = request.args.get("date_from", "") # 開始日
+    date_to = request.args.get("date_to", "") # 終了日
+    uninvoiced = request.args.get("uninvoiced", "") # 未請求のみ
+
+    # 基盤となるSQL (JOINを使って関連データを取得)
     query = """
         SELECT o.*, p.name, c.company_name 
         FROM orders o 
         JOIN products p ON o.product_id = p.id 
         LEFT JOIN customers c ON o.customer_id = c.id
-        WHERE p.name LIKE ?"""
-    params = [f"%{q}%"]
+        WHERE 1=1"""
+    params = []
+
+    # 商品名で検索
+    if q:
+        query += " AND p.name LIKE ?"
+        params.append(f"%{q}%")
+    # 顧客名で検索
+    if customer_q:
+        query += " AND c.company_name LIKE ?"
+        params.append(f"%{customer_q}%")
+    # ステータスで絞り込み
     if status:
         query += " AND o.status = ?"
         params.append(status)
+    # 日付範囲で絞り込み
+    if date_from:
+        query += " AND date(o.order_date) >= ?"
+        params.append(date_from)
+    if date_to:
+        query += " AND date(o.order_date) <= ?"
+        params.append(date_to)
+    # 「未請求のみ」チェックボックス
+    if uninvoiced:
+        query += " AND o.status = '未請求'"
+
     query += " ORDER BY o.order_date DESC"
+    
     with get_db() as conn:
         items = conn.execute(query, params).fetchall()
-    return render_template("orders.html", orders=items, q=q, status_filter=status)
+        
+    return render_template("orders.html", orders=items, 
+                           q=q, customer_q=customer_q, status_filter=status,
+                           date_from=date_from, date_to=date_to, uninvoiced=uninvoiced)
 
 @app.route("/orders/add", methods=["GET", "POST"])
 @login_required

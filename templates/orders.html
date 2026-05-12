@@ -3,23 +3,26 @@
 {% block title %}<h1>受注・請求管理</h1>{% endblock %}
 
 {% block content %}
-<div class="card-section">
+<!-- 検索・絞り込みフォーム (カードUI) -->
+<div class="card-section" style="margin-bottom: 24px;">
     <div class="section-header">
-        <h2>受注履歴一覧</h2>
-        <div style="display: flex; gap: 12px;">
-            <a href="{{ url_for('add_order') }}" class="btn-primary"><i class="fa-solid fa-plus"></i> 新規受注作成</a>
-        </div>
+        <h2><i class="fa-solid fa-filter"></i> 検索・絞り込み条件</h2>
     </div>
-    
-    <!-- 検索フィルタ -->
-    <div style="padding: 24px; border-bottom: 1px solid var(--border);">
-        <form method="GET" style="display: flex; gap: 16px; align-items: flex-end;">
-            <div style="flex: 1;">
-                <label style="display: block; font-size: 0.75rem; margin-bottom: 4px;">商品名検索</label>
-                <input type="text" name="q" value="{{ q }}" placeholder="商品名を入力...">
+    <div style="padding: 24px;">
+        <form method="GET" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; align-items: flex-end;">
+            <!-- 顧客名検索 -->
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>顧客名</label>
+                <input type="text" name="customer_q" value="{{ customer_q }}" placeholder="会社名で検索...">
             </div>
-            <div style="width: 200px;">
-                <label style="display: block; font-size: 0.75rem; margin-bottom: 4px;">ステータス</label>
+            <!-- 商品名検索 -->
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>商品名</label>
+                <input type="text" name="q" value="{{ q }}" placeholder="商品名で検索...">
+            </div>
+            <!-- ステータス絞り込み -->
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>ステータス</label>
                 <select name="status">
                     <option value="">すべて</option>
                     {% for s in ["未請求", "請求済", "入金済", "キャンセル"] %}
@@ -27,8 +30,33 @@
                     {% endfor %}
                 </select>
             </div>
-            <button type="submit" class="btn-secondary">検索</button>
+            <!-- 日付検索 -->
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>受注日 (開始)</label>
+                <input type="date" name="date_from" value="{{ date_from }}">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>受注日 (終了)</label>
+                <input type="date" name="date_to" value="{{ date_to }}">
+            </div>
+            <!-- 未請求のみ表示チェック -->
+            <div class="form-group" style="margin-bottom: 0; display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" name="uninvoiced" value="1" {{ 'checked' if uninvoiced }} style="width: auto;">
+                <label style="margin-bottom: 0;">未請求のみ</label>
+            </div>
+            <!-- ボタン類 -->
+            <div style="display: flex; gap: 8px;">
+                <button type="submit" class="btn-primary" style="flex: 1; justify-content: center;">検索</button>
+                <a href="{{ url_for('orders') }}" class="btn-secondary" style="flex: 1; justify-content: center; text-align: center;">クリア</a>
+            </div>
         </form>
+    </div>
+</div>
+
+<div class="card-section">
+    <div class="section-header">
+        <h2>受注一覧 ({{ orders|length }}件)</h2>
+        <a href="{{ url_for('add_order') }}" class="btn-primary"><i class="fa-solid fa-plus"></i> 新規受注作成</a>
     </div>
 
     <table>
@@ -47,7 +75,7 @@
             {% for o in orders %}
             <tr>
                 <td style="font-size: 0.8rem;" class="text-muted">
-                    {{ o.order_date[:16] }}<br>
+                    {{ o.order_date[:10] }}<br>
                     <span style="font-size: 0.7rem;">担当: {{ o.created_by }}</span>
                 </td>
                 <td class="font-bold">{{ o.company_name or '個人/未登録' }}</td>
@@ -71,6 +99,14 @@
                 </td>
             </tr>
             {% endfor %}
+            {% if not orders %}
+            <tr>
+                <td colspan="7" style="text-align: center; padding: 60px;" class="text-muted">
+                    <i class="fa-solid fa-folder-open" style="font-size: 2rem; display: block; margin-bottom: 12px;"></i>
+                    該当する受注データが見つかりませんでした。
+                </td>
+            </tr>
+            {% endif %}
         </tbody>
     </table>
 </div>
