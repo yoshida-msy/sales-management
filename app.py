@@ -11,32 +11,38 @@ from werkzeug.security import generate_password_hash, check_password_hash
 # PDF生成用ライブラリ
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
 
-app = Flask(__name__)
+# --- アプリケーション初期化 ---
+app = Flask(__name__, instance_relative_config=True)
 app.secret_key = os.environ.get("SECRET_KEY", "sales-pro-secret-key-2026")
 
-# --- ログイン管理 ---
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = "login"
+# Render環境での永続化に関する注意点:
+# Render Freeプランのディスクは「一時的（Ephemeral）」です。
+# デプロイや再起動のたびに SQLite のファイルは消えてしまいます。
+# 本当にデータを消したくない場合は、Renderの「Managed PostgreSQL (Freeあり)」を使用するか、
+# 有料プランの「Persistent Disk」をアタッチする必要があります。
 
 # --- データベース設定 ---
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATABASE = os.path.join(BASE_DIR, "database.db")
+# データベースファイルを instance フォルダに配置（Flaskのベストプラクティス）
+os.makedirs(app.instance_path, exist_ok=True)
+DATABASE = os.path.join(app.instance_path, "database.db")
 
 def get_db():
+    """データベース接続を取得します"""
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     return conn
 
-# ユーザーモデル (ロール権限を追加)
+# --- ログイン管理 (Flask-Login) ---
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login"
+
 class User(UserMixin):
     def __init__(self, id, username, role):
         self.id = id
         self.username = username
-        self.role = role # 'admin' or 'staff'
+        self.role = role
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -45,10 +51,12 @@ def load_user(user_id):
         if user: return User(user["id"], user["username"], user["role"])
     return None
 
-# --- DB初期化 (スキーマ拡張) ---
+# --- データベース初期化 (CLIコマンド & 自動) ---
+
 def init_db():
+    """テーブルの作成を行います（存在しない場合のみ）"""
     with get_db() as conn:
-        # ユーザー: roleカラム追加
+        # ユーザー
         conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -57,7 +65,7 @@ def init_db():
                 role TEXT DEFAULT 'staff'
             )
         """)
-        # 顧客テーブル新規追加
+        # 顧客
         conn.execute("""
             CREATE TABLE IF NOT EXISTS customers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,11 +76,16 @@ def init_db():
                 address TEXT
             )
         """)
-        # 商品テーブル
-        conn.execute("CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, price INTEGER NOT NULL, stock INTEGER NOT NULL)")
-        
-        # 受注テーブル: customer_id, created_by, updated_at 追加
-        # 注意: 既存テーブルがある場合は ALTER TABLE が必要ですが、ここでは簡略化のため新規作成ベースで記述
+        # 商品
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS products (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                name TEXT NOT NULL, 
+                price INTEGER NOT NULL, 
+                stock INTEGER NOT NULL
+            )
+        """)
+        # 受注
         conn.execute("""
             CREATE TABLE IF NOT EXISTS orders (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -88,27 +101,46 @@ def init_db():
                 FOREIGN KEY (customer_id) REFERENCES customers (id)
             )
         """)
-        
-        # 初期データの投入
+        conn.commit()
+
+def seed_db():
+    """初期データの投入（管理者アカウントとデモデータ）"""
+    with get_db() as conn:
+        # 管理者アカウント
         if not conn.execute("SELECT * FROM users WHERE username = 'admin'").fetchone():
             conn.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", 
                          ("admin", generate_password_hash("password"), "admin"))
+        
+        # スタッフアカウント
         if not conn.execute("SELECT * FROM users WHERE username = 'staff'").fetchone():
             conn.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", 
                          ("staff", generate_password_hash("password"), "staff"))
         
-        # デモ顧客の投入
-        if conn.execute("SELECT COUNT(*) FROM customers").fetchone()[0] == 0:
-            sample_custs = [
-                ("株式会社テクノ未来", "田中 太郎", "tanaka@example.com", "03-1234-5678", "東京都千代田区1-1"),
-                ("グローバル商事", "佐藤 次郎", "sato@example.com", "06-9876-5432", "大阪府大阪市北区2-2"),
-                ("スマートシステム", "鈴木 一郎", "suzuki@example.com", "052-111-2222", "愛知県名古屋市中区3-3")
-            ]
+        # デモデータは開発環境（debug=True）の初回のみ投入
+        if app.debug and conn.execute("SELECT COUNT(*) FROM products").fetchone()[0] == 0:
+            # デモ商品
+            sample_prods = [("高性能ノートPC", 120000, 15), ("27インチモニター", 32000, 10), ("ワイヤレスマウス", 3500, 50)]
+            conn.executemany("INSERT INTO products (name, price, stock) VALUES (?, ?, ?)", sample_prods)
+            
+            # デモ顧客
+            sample_custs = [("株式会社テクノ未来", "田中 太郎", "tanaka@example.com", "03-1234-5678", "東京都千代田区1-1")]
             conn.executemany("INSERT INTO customers (company_name, contact_name, email, phone, address) VALUES (?, ?, ?, ?, ?)", sample_custs)
             
         conn.commit()
 
-init_db()
+# Flask CLIコマンドとして登録（ターミナルから `flask init-db` で実行可能）
+@app.cli.command("init-db")
+def init_db_command():
+    """Clear existing data and create new tables."""
+    init_db()
+    seed_db()
+    print("Initialized the database.")
+
+# アプリ起動時にテーブル作成だけは自動で行う（Render等での初回起動対策）
+with app.app_context():
+    init_db()
+    # 本番環境では自動でSeedデータ（デモデータ）を入れないように調整も可能
+    seed_db()
 
 # --- 認証ルート ---
 
@@ -129,6 +161,36 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for("login"))
+
+# --- ダッシュボード (メイン) ---
+
+@app.route("/")
+@login_required
+def index():
+    with get_db() as conn:
+        total_sales = conn.execute("SELECT SUM(total_price) FROM orders WHERE status != 'キャンセル'").fetchone()[0] or 0
+        today_sales = conn.execute("SELECT SUM(total_price) FROM orders WHERE date(order_date) = date('now') AND status != 'キャンセル'").fetchone()[0] or 0
+        uninvoiced = conn.execute("SELECT COUNT(*) FROM orders WHERE status = '未請求'").fetchone()[0] or 0
+        low_stock = conn.execute("SELECT COUNT(*) FROM products WHERE stock < 5").fetchone()[0] or 0
+        
+        # グラフ用データ
+        monthly = conn.execute("SELECT strftime('%Y-%m', order_date) as m, SUM(total_price) as s FROM orders GROUP BY m ORDER BY m DESC LIMIT 6").fetchall()
+        daily = conn.execute("SELECT date(order_date) as d, SUM(total_price) as s FROM orders WHERE order_date >= date('now', '-7 days') GROUP BY d ORDER BY d ASC").fetchall()
+        status_data = conn.execute("SELECT status, COUNT(*) as c FROM orders GROUP BY status").fetchall()
+        ranking = conn.execute("""
+            SELECT p.name, SUM(o.total_price) as total, SUM(o.quantity) as qty
+            FROM orders o JOIN products p ON o.product_id = p.id
+            WHERE o.status != 'キャンセル'
+            GROUP BY p.id ORDER BY total DESC LIMIT 5
+        """).fetchall()
+
+    return render_template("dashboard.html", 
+                           total_sales=total_sales, today_sales=today_sales, 
+                           uninvoiced=uninvoiced, low_stock=low_stock,
+                           m_labels=[r["m"] for r in reversed(monthly)], m_values=[r["s"] for r in reversed(monthly)],
+                           d_labels=[r["d"] for r in daily], d_values=[r["s"] for r in daily],
+                           s_labels=[r["status"] for r in status_data], s_values=[r["c"] for r in status_data],
+                           ranking=ranking)
 
 # --- 顧客管理 ---
 
@@ -162,79 +224,7 @@ def delete_customer(id):
     flash("顧客を削除しました")
     return redirect(url_for("customers"))
 
-# --- 受注管理 (PDF生成追加) ---
-
-@app.route("/orders/pdf/<int:id>")
-@login_required
-def generate_pdf(id):
-    """
-    請求書PDFを生成してダウンロードさせます
-    """
-    with get_db() as conn:
-        order = conn.execute("""
-            SELECT o.*, p.name as product_name, p.price, c.company_name, c.address 
-            FROM orders o 
-            JOIN products p ON o.product_id = p.id 
-            LEFT JOIN customers c ON o.customer_id = c.id
-            WHERE o.id = ?""", (id,)).fetchone()
-    
-    if not order: return "Order not found", 404
-
-    # メモリ上にPDFを作成
-    buffer = io.BytesIO()
-    p = canvas.Canvas(buffer, pagesize=A4)
-    
-    # フォント設定 (Render等の環境で日本語フォントがない場合は標準フォントにフォールバック)
-    # 実務では日本語TTFファイルをプロジェクトに含めるのが一般的です
-    p.setFont("Helvetica", 16)
-    p.drawString(100, 800, f"INVOICE (Order ID: {order['id']})")
-    
-    p.setFont("Helvetica", 12)
-    p.drawString(100, 750, f"Customer: {order['company_name'] or 'N/A'}")
-    p.drawString(100, 730, f"Date: {order['order_date']}")
-    
-    p.line(100, 710, 500, 710)
-    
-    p.drawString(100, 680, f"Product: {order['product_name']}")
-    p.drawString(100, 660, f"Quantity: {order['quantity']}")
-    p.drawString(100, 640, f"Total Price: {order['total_price']:,} JPY")
-    
-    p.showPage()
-    p.save()
-    
-    buffer.seek(0)
-    return send_file(buffer, as_attachment=True, download_name=f"invoice_{id}.pdf", mimetype='application/pdf')
-
-# --- メイン機能 (既存機能の拡張) ---
-
-@app.route("/")
-@login_required
-def index():
-    with get_db() as conn:
-        # KPIデータ
-        total_sales = conn.execute("SELECT SUM(total_price) FROM orders WHERE status != 'キャンセル'").fetchone()[0] or 0
-        today_sales = conn.execute("SELECT SUM(total_price) FROM orders WHERE date(order_date) = date('now') AND status != 'キャンセル'").fetchone()[0] or 0
-        uninvoiced = conn.execute("SELECT COUNT(*) FROM orders WHERE status = '未請求'").fetchone()[0] or 0
-        low_stock = conn.execute("SELECT COUNT(*) FROM products WHERE stock < 5").fetchone()[0] or 0
-        
-        # グラフデータ取得 (以前の実装を継承)
-        monthly = conn.execute("SELECT strftime('%Y-%m', order_date) as m, SUM(total_price) as s FROM orders GROUP BY m ORDER BY m DESC LIMIT 6").fetchall()
-        daily = conn.execute("SELECT date(order_date) as d, SUM(total_price) as s FROM orders WHERE order_date >= date('now', '-7 days') GROUP BY d ORDER BY d ASC").fetchall()
-        status_data = conn.execute("SELECT status, COUNT(*) as c FROM orders GROUP BY status").fetchall()
-        ranking = conn.execute("""
-            SELECT p.name, SUM(o.total_price) as total, SUM(o.quantity) as qty
-            FROM orders o JOIN products p ON o.product_id = p.id
-            WHERE o.status != 'キャンセル'
-            GROUP BY p.id ORDER BY total DESC LIMIT 5
-        """).fetchall()
-
-    return render_template("dashboard.html", 
-                           total_sales=total_sales, today_sales=today_sales, 
-                           uninvoiced=uninvoiced, low_stock=low_stock,
-                           m_labels=[r["m"] for r in reversed(monthly)], m_values=[r["s"] for r in reversed(monthly)],
-                           d_labels=[r["d"] for r in daily], d_values=[r["s"] for r in daily],
-                           s_labels=[r["status"] for r in status_data], s_values=[r["c"] for r in status_data],
-                           ranking=ranking)
+# --- 商品管理 ---
 
 @app.route("/products", methods=["GET", "POST"])
 @login_required
@@ -253,7 +243,6 @@ def products():
 @app.route("/products/edit/<int:id>", methods=["GET", "POST"])
 @login_required
 def edit_product(id):
-    """商品情報を編集する"""
     conn = get_db()
     if request.method == "POST":
         conn.execute("UPDATE products SET name=?, price=?, stock=? WHERE id=?",
@@ -275,6 +264,8 @@ def delete_product(id):
         conn.commit()
     flash("商品を削除しました")
     return redirect(url_for("products"))
+
+# --- 受注管理 ---
 
 @app.route("/orders")
 @login_required
@@ -329,6 +320,35 @@ def update_status(id):
         conn.commit()
     flash("ステータスを更新しました")
     return redirect(url_for("orders"))
+
+# --- 外部出力 (PDF/CSV) ---
+
+@app.route("/orders/pdf/<int:id>")
+@login_required
+def generate_pdf(id):
+    with get_db() as conn:
+        order = conn.execute("""
+            SELECT o.*, p.name as product_name, p.price, c.company_name, c.address 
+            FROM orders o 
+            JOIN products p ON o.product_id = p.id 
+            LEFT JOIN customers c ON o.customer_id = c.id
+            WHERE o.id = ?""", (id,)).fetchone()
+    if not order: return "Order not found", 404
+    buffer = io.BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    p.setFont("Helvetica", 16)
+    p.drawString(100, 800, f"INVOICE (Order ID: {order['id']})")
+    p.setFont("Helvetica", 12)
+    p.drawString(100, 750, f"Customer: {order['company_name'] or 'N/A'}")
+    p.drawString(100, 730, f"Date: {order['order_date']}")
+    p.line(100, 710, 500, 710)
+    p.drawString(100, 680, f"Product: {order['product_name']}")
+    p.drawString(100, 660, f"Quantity: {order['quantity']}")
+    p.drawString(100, 640, f"Total Price: {order['total_price']:,} JPY")
+    p.showPage()
+    p.save()
+    buffer.seek(0)
+    return send_file(buffer, as_attachment=True, download_name=f"invoice_{id}.pdf", mimetype='application/pdf')
 
 @app.route("/export/csv")
 @login_required
