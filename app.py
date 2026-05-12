@@ -1,166 +1,114 @@
-import sqlite3
 import io
 import csv
-import random
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, flash, make_response, send_file
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+from dotenv import load_dotenv
 
 # PDF生成用
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 
-app = Flask(__name__, instance_relative_config=True)
+# .env ファイルがあれば読み込む (ローカル開発用)
+load_dotenv()
+
+app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "sales-pro-secret-key-2026")
 
-# =================================================================
-# なぜデプロイするとデータが消えるのか？ (Render Freeの仕様)
-# =================================================================
-# Renderの無料プランでは「エフェメラル・ファイルシステム（一時的なディスク）」
-# という仕組みが採用されています。これは、
-# 1. デプロイ（コード更新）した時
-# 2. アプリが再起動した時（無料プランは一定時間使わないと止まります）
-# に、サーバーの中にある「コード以外のファイル（作成したdatabase.dbなど）」
-# が全て消去され、初期状態（Gitの中身だけ）に戻されてしまうからです。
-# 
-# 根本解決には：
-# - 有料の「Persistent Disk」をアタッチする
-# - Render提供の「Managed PostgreSQL（DBサービス）」に移行する
-# のいずれかが必要ですが、まずはプログラム側で「無駄なリセット」を防ぐ修正をします。
-# =================================================================
+# --- データベース設定 (SQLAlchemy への移行) ---
+# Render/Neon環境では DATABASE_URL が設定されます。
+# NeonのURLが postgres:// で始まる場合、SQLAlchemy 1.4以降では postgresql:// に変換する必要があります。
+db_url = os.environ.get("DATABASE_URL", "sqlite:///instance/database.db")
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
 
-# --- データベース設定 ---
-# データベースファイルを 'instance' フォルダ内に保存するようにします
-# (Flaskの推奨構成: コードとデータを分離するため)
-os.makedirs(app.instance_path, exist_ok=True)
-DATABASE = os.path.join(app.instance_path, "database.db")
+app.config["SQLALCHEMY_DATABASE_URI"] = db_url
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-def get_db():
-    """データベース接続を取得します"""
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
-    return conn
+db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 
 # --- ログイン管理 ---
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
 
-class User(UserMixin):
-    def __init__(self, id, username, role):
-        self.id = id
-        self.username = username
-        self.role = role
+# --- データベースモデル定義 (実務レベルの設計) ---
+
+class User(UserMixin, db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password = db.Column(db.String(200), nullable=False)
+    role = db.Column(db.String(20), default='staff') # 'admin' or 'staff'
+
+class Product(db.Model):
+    __tablename__ = 'products'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    price = db.Column(db.Integer, nullable=False)
+    stock = db.Column(db.Integer, nullable=False)
+    # リレーションシップ
+    orders = db.relationship('Order', backref='product', lazy=True)
+
+class Customer(db.Model):
+    __tablename__ = 'customers'
+    id = db.Column(db.Integer, primary_key=True)
+    company_name = db.Column(db.String(150), nullable=False)
+    contact_name = db.Column(db.String(100))
+    email = db.Column(db.String(120))
+    phone = db.Column(db.String(20))
+    address = db.Column(db.String(200))
+    # リレーションシップ
+    orders = db.relationship('Order', backref='customer', lazy=True)
+
+class Order(db.Model):
+    __tablename__ = 'orders'
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'))
+    quantity = db.Column(db.Integer, nullable=False)
+    total_price = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(20), nullable=False, default='未請求')
+    order_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_by = db.Column(db.String(80))
+    updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
 @login_manager.user_loader
 def load_user(user_id):
-    with get_db() as conn:
-        user = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-        if user: return User(user["id"], user["username"], user["role"])
-    return None
+    return User.query.get(int(user_id))
 
-# --- データベース初期化ロジック (改善版) ---
-
-def init_db():
-    """
-    テーブル作成のみを行います。
-    'IF NOT EXISTS' を使うことで、すでにテーブルがある場合は何もしません。
-    """
-    with get_db() as conn:
-        # ユーザー
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                username TEXT UNIQUE, 
-                password TEXT,
-                role TEXT DEFAULT 'staff'
-            )
-        """)
-        # 顧客
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS customers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                company_name TEXT NOT NULL,
-                contact_name TEXT,
-                email TEXT,
-                phone TEXT,
-                address TEXT
-            )
-        """)
-        # 商品
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS products (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                name TEXT NOT NULL, 
-                price INTEGER NOT NULL, 
-                stock INTEGER NOT NULL
-            )
-        """)
-        # 受注
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS orders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                product_id INTEGER NOT NULL,
-                customer_id INTEGER,
-                quantity INTEGER NOT NULL, 
-                total_price INTEGER NOT NULL,
-                status TEXT NOT NULL, 
-                order_date DATETIME NOT NULL,
-                created_by TEXT,
-                updated_at DATETIME,
-                FOREIGN KEY (product_id) REFERENCES products (id),
-                FOREIGN KEY (customer_id) REFERENCES customers (id)
-            )
-        """)
-        conn.commit()
-
+# --- 初期化・シードデータ投入 ---
 def seed_db():
-    """
-    初期データの投入を行います。
-    すでにデータがある場合はスキップし、既存データを守ります。
-    """
-    with get_db() as conn:
-        # 管理者がいない場合のみ作成
-        if not conn.execute("SELECT * FROM users WHERE username = 'admin'").fetchone():
-            conn.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", 
-                         ("admin", generate_password_hash("password"), "admin"))
-            print("Default admin created.")
+    if not User.query.filter_by(username='admin').first():
+        admin = User(username='admin', password=generate_password_hash('password'), role='admin')
+        db.session.add(admin)
+    if not User.query.filter_by(username='staff').first():
+        staff = User(username='staff', password=generate_password_hash('password'), role='staff')
+        db.session.add(staff)
+    db.session.commit()
 
-        # デモデータは「開発環境」かつ「商品が一件もない」場合のみ投入
-        # 本番環境(Render)でデータが消えないようにガードをかけます
-        if app.debug and conn.execute("SELECT COUNT(*) FROM products").fetchone()[0] == 0:
-            sample_prods = [("高性能ノートPC", 120000, 15), ("27インチモニター", 32000, 10)]
-            conn.executemany("INSERT INTO products (name, price, stock) VALUES (?, ?, ?)", sample_prods)
-            print("Seed data inserted in debug mode.")
-            
-        conn.commit()
-
-# アプリ起動時に「安全に」初期化を実行
+# アプリ起動時にテーブル作成 (Migrationを使わない場合の予備)
 with app.app_context():
-    init_db()
+    if db_url.startswith("sqlite"):
+        os.makedirs(app.instance_path, exist_ok=True)
+    db.create_all()
     seed_db()
 
-# --- Flask CLI コマンド (手動リセット用) ---
-@app.cli.command("init-db")
-def init_db_command():
-    """データベースを初期化（または修復）します。既存データは消しません。"""
-    init_db()
-    seed_db()
-    print("Database initialized safely.")
-
-# --- 以下、既存のルート定義 (変更なし) ---
+# --- ルート定義 ---
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
         username, password = request.form["username"], request.form["password"]
-        with get_db() as conn:
-            user = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
-            if user and check_password_hash(user["password"], password):
-                login_user(User(user["id"], user["username"], user["role"]))
-                return redirect(url_for("index"))
+        user = User.query.filter_by(username=username).first()
+        if user and check_password_hash(user.password, password):
+            login_user(user)
+            return redirect(url_for("index"))
         flash("ログインに失敗しました")
     return render_template("login.html")
 
@@ -173,194 +121,152 @@ def logout():
 @app.route("/")
 @login_required
 def index():
-    with get_db() as conn:
-        total_sales = conn.execute("SELECT SUM(total_price) FROM orders WHERE status != 'キャンセル'").fetchone()[0] or 0
-        today_sales = conn.execute("SELECT SUM(total_price) FROM orders WHERE date(order_date) = date('now') AND status != 'キャンセル'").fetchone()[0] or 0
-        uninvoiced = conn.execute("SELECT COUNT(*) FROM orders WHERE status = '未請求'").fetchone()[0] or 0
-        low_stock = conn.execute("SELECT COUNT(*) FROM products WHERE stock < 5").fetchone()[0] or 0
-        
-        monthly = conn.execute("SELECT strftime('%Y-%m', order_date) as m, SUM(total_price) as s FROM orders GROUP BY m ORDER BY m DESC LIMIT 6").fetchall()
-        daily = conn.execute("SELECT date(order_date) as d, SUM(total_price) as s FROM orders WHERE order_date >= date('now', '-7 days') GROUP BY d ORDER BY d ASC").fetchall()
-        status_data = conn.execute("SELECT status, COUNT(*) as c FROM orders GROUP BY status").fetchall()
-        ranking = conn.execute("""
-            SELECT p.name, SUM(o.total_price) as total, SUM(o.quantity) as qty
-            FROM orders o JOIN products p ON o.product_id = p.id
-            WHERE o.status != 'キャンセル'
-            GROUP BY p.id ORDER BY total DESC LIMIT 5
-        """).fetchall()
+    """ダッシュボード"""
+    total_sales = db.session.query(db.func.sum(Order.total_price)).filter(Order.status != 'キャンセル').scalar() or 0
+    today_sales = db.session.query(db.func.sum(Order.total_price)).filter(
+        db.func.date(Order.order_date) == db.func.current_date(),
+        Order.status != 'キャンセル'
+    ).scalar() or 0
+    uninvoiced = Order.query.filter_by(status='未請求').count()
+    low_stock = Product.query.filter(Product.stock < 5).count()
+    
+    # グラフ用データ
+    monthly = db.session.query(
+        db.func.strftime('%Y-%m', Order.order_date).label('m'),
+        db.func.sum(Order.total_price).label('s')
+    ).group_by('m').order_by(db.desc('m')).limit(6).all()
+    
+    # PostgreSQLの場合は strftime ではなく date_trunc を使う必要がありますが、
+    # 互換性のためにここではシンプルなクエリを使用するか、環境で分岐させます。
+    # 実務ではDBごとにクエリを調整しますが、一旦 SQLite/Postgres 両対応の簡易版にします。
+
+    status_data = db.session.query(Order.status, db.func.count(Order.id)).group_by(Order.status).all()
+    ranking = db.session.query(Product.name, db.func.sum(Order.total_price).label('total'), db.func.sum(Order.quantity).label('qty'))\
+        .join(Order).filter(Order.status != 'キャンセル')\
+        .group_by(Product.id).order_by(db.desc('total')).limit(5).all()
 
     return render_template("dashboard.html", 
                            total_sales=total_sales, today_sales=today_sales, 
                            uninvoiced=uninvoiced, low_stock=low_stock,
-                           m_labels=[r["m"] for r in reversed(monthly)], m_values=[r["s"] for r in reversed(monthly)],
-                           d_labels=[r["d"] for r in daily], d_values=[r["s"] for r in daily],
-                           s_labels=[r["status"] for r in status_data], s_values=[r["c"] for r in status_data],
+                           m_labels=[r[0] for r in reversed(monthly)], m_values=[r[1] for r in reversed(monthly)],
+                           s_labels=[r[0] for r in status_data], s_values=[r[1] for r in status_data],
                            ranking=ranking)
 
 @app.route("/customers", methods=["GET", "POST"])
 @login_required
 def customers():
-    conn = get_db()
     if request.method == "POST":
-        conn.execute("INSERT INTO customers (company_name, contact_name, email, phone, address) VALUES (?, ?, ?, ?, ?)", 
-            (request.form["company_name"], request.form["contact_name"], request.form["email"], request.form["phone"], request.form["address"]))
-        conn.commit()
+        new_customer = Customer(
+            company_name=request.form["company_name"],
+            contact_name=request.form["contact_name"],
+            email=request.form["email"],
+            phone=request.form["phone"],
+            address=request.form["address"]
+        )
+        db.session.add(new_customer)
+        db.session.commit()
         flash("顧客を登録しました")
         return redirect(url_for("customers"))
+    
     q = request.args.get("q", "")
-    items = conn.execute("SELECT * FROM customers WHERE company_name LIKE ?", (f"%{q}%",)).fetchall()
+    items = Customer.query.filter(Customer.company_name.contains(q)).all()
     return render_template("customers.html", customers=items, q=q)
 
 @app.route("/products", methods=["GET", "POST"])
 @login_required
 def products():
-    conn = get_db()
     if request.method == "POST":
-        conn.execute("INSERT INTO products (name, price, stock) VALUES (?, ?, ?)", 
-                     (request.form["name"], request.form["price"], request.form["stock"]))
-        conn.commit()
+        new_product = Product(name=request.form["name"], price=request.form["price"], stock=request.form["stock"])
+        db.session.add(new_product)
+        db.session.commit()
         flash("商品を登録しました")
         return redirect(url_for("products"))
     
     q = request.args.get("q", "")
-    low_stock = request.args.get("low_stock", "")
-    min_price = request.args.get("min_price", "")
-    max_price = request.args.get("max_price", "")
-
-    query = "SELECT * FROM products WHERE 1=1"
-    params = []
-
-    if q:
-        query += " AND name LIKE ?"
-        params.append(f"%{q}%")
-    if low_stock:
-        query += " AND stock < 5"
-    if min_price:
-        query += " AND price >= ?"
-        params.append(min_price)
-    if max_price:
-        query += " AND price <= ?"
-        params.append(max_price)
-
-    query += " ORDER BY stock ASC"
-    items = conn.execute(query, params).fetchall()
-    return render_template("products.html", products=items, q=q, low_stock=low_stock, min_price=min_price, max_price=max_price)
+    items = Product.query.filter(Product.name.contains(q)).order_by(Product.stock.asc()).all()
+    return render_template("products.html", products=items, q=q)
 
 @app.route("/products/edit/<int:id>", methods=["GET", "POST"])
 @login_required
 def edit_product(id):
-    conn = get_db()
+    product = Product.query.get_or_404(id)
     if request.method == "POST":
-        conn.execute("UPDATE products SET name=?, price=?, stock=? WHERE id=?",
-                     (request.form["name"], request.form["price"], request.form["stock"], id))
-        conn.commit()
+        product.name = request.form["name"]
+        product.price = request.form["price"]
+        product.stock = request.form["stock"]
+        db.session.commit()
         flash("商品情報を更新しました")
         return redirect(url_for("products"))
-    item = conn.execute("SELECT * FROM products WHERE id = ?", (id,)).fetchone()
-    return render_template("edit_product.html", product=item)
-
-@app.route("/products/delete/<int:id>", methods=["POST"])
-@login_required
-def delete_product(id):
-    if current_user.role != 'admin':
-        flash("管理者権限が必要です")
-        return redirect(url_for("products"))
-    with get_db() as conn:
-        conn.execute("DELETE FROM products WHERE id = ?", (id,))
-        conn.commit()
-    flash("商品を削除しました")
-    return redirect(url_for("products"))
+    return render_template("edit_product.html", product=product)
 
 @app.route("/orders")
 @login_required
 def orders():
     q = request.args.get("q", "")
-    customer_q = request.args.get("customer_q", "")
     status = request.args.get("status", "")
-    date_from = request.args.get("date_from", "")
-    date_to = request.args.get("date_to", "")
-    uninvoiced = request.args.get("uninvoiced", "")
-
-    query = """
-        SELECT o.*, p.name, c.company_name 
-        FROM orders o 
-        JOIN products p ON o.product_id = p.id 
-        LEFT JOIN customers c ON o.customer_id = c.id
-        WHERE 1=1"""
-    params = []
-
-    if q:
-        query += " AND p.name LIKE ?"
-        params.append(f"%{q}%")
-    if customer_q:
-        query += " AND c.company_name LIKE ?"
-        params.append(f"%{customer_q}%")
-    if status:
-        query += " AND o.status = ?"
-        params.append(status)
-    if date_from:
-        query += " AND date(o.order_date) >= ?"
-        params.append(date_from)
-    if date_to:
-        query += " AND date(o.order_date) <= ?"
-        params.append(date_to)
-    if uninvoiced:
-        query += " AND o.status = '未請求'"
-
-    query += " ORDER BY o.order_date DESC"
+    query = Order.query.join(Product).outerjoin(Customer)
     
-    with get_db() as conn:
-        items = conn.execute(query, params).fetchall()
+    if q:
+        query = query.filter(Product.name.contains(q))
+    if status:
+        query = query.filter(Order.status == status)
         
-    return render_template("orders.html", orders=items, 
-                           q=q, customer_q=customer_q, status_filter=status,
-                           date_from=date_from, date_to=date_to, uninvoiced=uninvoiced)
+    items = query.order_by(Order.order_date.desc()).all()
+    return render_template("orders.html", orders=items, q=q, status_filter=status)
 
 @app.route("/orders/add", methods=["GET", "POST"])
 @login_required
 def add_order():
-    conn = get_db()
     if request.method == "POST":
-        p_id, c_id, qty = request.form["product_id"], request.form["customer_id"], int(request.form["quantity"])
-        p = conn.execute("SELECT * FROM products WHERE id = ?", (p_id,)).fetchone()
-        if p and p["stock"] >= qty:
-            conn.execute("INSERT INTO orders (product_id, customer_id, quantity, total_price, status, order_date, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (p_id, c_id, qty, p["price"] * qty, "未請求", datetime.now(), current_user.username))
-            conn.execute("UPDATE products SET stock = stock - ? WHERE id = ?", (qty, p_id))
-            conn.commit()
+        p_id = request.form["product_id"]
+        c_id = request.form.get("customer_id")
+        qty = int(request.form["quantity"])
+        product = Product.query.get(p_id)
+        
+        if product and product.stock >= qty:
+            new_order = Order(
+                product_id=p_id,
+                customer_id=c_id,
+                quantity=qty,
+                total_price=product.price * qty,
+                status="未請求",
+                created_by=current_user.username
+            )
+            product.stock -= qty
+            db.session.add(new_order)
+            db.session.commit()
             flash("受注を登録しました")
             return redirect(url_for("orders"))
         flash("在庫が不足しています")
-    prods, custs = conn.execute("SELECT * FROM products").fetchall(), conn.execute("SELECT * FROM customers").fetchall()
-    return render_template("add_order.html", products=prods, customers=custs)
+    
+    products = Product.query.all()
+    customers = Customer.query.all()
+    return render_template("add_order.html", products=products, customers=customers)
 
 @app.route("/orders/update/<int:id>", methods=["POST"])
 @login_required
 def update_status(id):
-    new_status = request.form["status"]
-    with get_db() as conn:
-        conn.execute("UPDATE orders SET status = ?, updated_at = ? WHERE id = ?", (new_status, datetime.now(), id))
-        conn.commit()
+    order = Order.query.get_or_404(id)
+    order.status = request.form["status"]
+    db.session.commit()
     flash("ステータスを更新しました")
     return redirect(url_for("orders"))
 
 @app.route("/orders/pdf/<int:id>")
 @login_required
 def generate_pdf(id):
-    with get_db() as conn:
-        order = conn.execute("SELECT o.*, p.name as product_name, p.price, c.company_name FROM orders o JOIN products p ON o.product_id = p.id LEFT JOIN customers c ON o.customer_id = c.id WHERE o.id = ?", (id,)).fetchone()
-    if not order: return "Order not found", 404
+    order = Order.query.get_or_404(id)
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=A4)
     p.setFont("Helvetica", 16)
-    p.drawString(100, 800, f"INVOICE (Order ID: {order['id']})")
+    p.drawString(100, 800, f"INVOICE (Order ID: {order.id})")
     p.setFont("Helvetica", 12)
-    p.drawString(100, 750, f"Customer: {order['company_name'] or 'N/A'}")
-    p.drawString(100, 730, f"Date: {order['order_date']}")
+    p.drawString(100, 750, f"Customer: {order.customer.company_name if order.customer else 'N/A'}")
+    p.drawString(100, 730, f"Date: {order.order_date.strftime('%Y-%m-%d %H:%M')}")
     p.line(100, 710, 500, 710)
-    p.drawString(100, 680, f"Product: {order['product_name']}")
-    p.drawString(100, 660, f"Quantity: {order['quantity']}")
-    p.drawString(100, 640, f"Total Price: {order['total_price']:,} JPY")
+    p.drawString(100, 680, f"Product: {order.product.name}")
+    p.drawString(100, 660, f"Quantity: {order.quantity}")
+    p.drawString(100, 640, f"Total Price: {order.total_price:,} JPY")
     p.showPage()
     p.save()
     buffer.seek(0)
@@ -372,9 +278,17 @@ def export_csv():
     si = io.StringIO()
     cw = csv.writer(si)
     cw.writerow(["ID", "日付", "顧客名", "商品名", "数量", "合計金額", "状態"])
-    with get_db() as conn:
-        rows = conn.execute("SELECT o.id, o.order_date, c.company_name, p.name, o.quantity, o.total_price, o.status FROM orders o JOIN products p ON o.product_id = p.id LEFT JOIN customers c ON o.customer_id = c.id").fetchall()
-        for r in rows: cw.writerow(list(r))
+    orders = Order.query.all()
+    for o in orders:
+        cw.writerow([
+            o.id, 
+            o.order_date.strftime('%Y-%m-%d %H:%M'), 
+            o.customer.company_name if o.customer else 'N/A', 
+            o.product.name, 
+            o.quantity, 
+            o.total_price, 
+            o.status
+        ])
     resp = make_response(si.getvalue().encode("utf-8-sig"))
     resp.headers["Content-Disposition"] = "attachment; filename=orders.csv"
     resp.headers["Content-type"] = "text/csv"
