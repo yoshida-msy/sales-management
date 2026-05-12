@@ -19,10 +19,22 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "sales-pro-secret-key-2026")
 
-# --- データベース設定 (SQLAlchemy への移行) ---
+# --- データベース設定 ---
+# プロジェクトのルートディレクトリを絶対パスで取得
+basedir = os.path.abspath(os.path.dirname(__file__))
+# instance フォルダのパスを作成
+instance_path = os.path.join(basedir, 'instance')
+
+# Renderや本番環境で instance フォルダが存在しない場合に自動生成
+if not os.path.exists(instance_path):
+    os.makedirs(instance_path)
+
 # Render/Neon環境では DATABASE_URL が設定されます。
-# NeonのURLが postgres:// で始まる場合、SQLAlchemy 1.4以降では postgresql:// に変換する必要があります。
-db_url = os.environ.get("DATABASE_URL", "sqlite:///instance/database.db")
+# 設定されていない場合は、安全な絶対パスで SQLite を使用します。
+default_db = f"sqlite:///{os.path.join(instance_path, 'database.db')}"
+db_url = os.environ.get("DATABASE_URL", default_db)
+
+# Render(Neon)の postgres:// を postgresql:// に変換 (SQLAlchemy互換性)
 if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
 
@@ -94,8 +106,6 @@ def seed_db():
 
 # アプリ起動時にテーブル作成 (Migrationを使わない場合の予備)
 with app.app_context():
-    if db_url.startswith("sqlite"):
-        os.makedirs(app.instance_path, exist_ok=True)
     db.create_all()
     seed_db()
 
