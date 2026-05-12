@@ -1,7 +1,7 @@
 import io
 import csv
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, make_response, send_file
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -131,34 +131,60 @@ def logout():
 @app.route("/")
 @login_required
 def index():
-    """ダッシュボード"""
+    """ダッシュボード (分析画面)"""
+    # KPIデータ
     total_sales = db.session.query(db.func.sum(Order.total_price)).filter(Order.status != 'キャンセル').scalar() or 0
+    
+    # 本日売上 (DBごとに日付取得方法を調整)
+    today = datetime.utcnow().date()
     today_sales = db.session.query(db.func.sum(Order.total_price)).filter(
-        db.func.date(Order.order_date) == db.func.current_date(),
+        db.func.date(Order.order_date) == today,
         Order.status != 'キャンセル'
     ).scalar() or 0
+    
     uninvoiced = Order.query.filter_by(status='未請求').count()
     low_stock = Product.query.filter(Product.stock < 5).count()
     
-    # グラフ用データ
+    # --- グラフ用データ ---
+    
+    # DBエンジンの判別
+    is_postgres = db.engine.url.drivername.startswith("postgresql")
+
+    # 1. 月別売上推移
+    if is_postgres:
+        monthly_fmt = db.func.to_char(Order.order_date, 'YYYY-MM')
+    else:
+        monthly_fmt = db.func.strftime('%Y-%m', Order.order_date)
+
     monthly = db.session.query(
-        db.func.strftime('%Y-%m', Order.order_date).label('m'),
+        monthly_fmt.label('m'),
         db.func.sum(Order.total_price).label('s')
     ).group_by('m').order_by(db.desc('m')).limit(6).all()
     
-    # PostgreSQLの場合は strftime ではなく date_trunc を使う必要がありますが、
-    # 互換性のためにここではシンプルなクエリを使用するか、環境で分岐させます。
-    # 実務ではDBごとにクエリを調整しますが、一旦 SQLite/Postgres 両対応の簡易版にします。
-
+    # 2. 日別売上グラフ (直近7日間)
+    seven_days_ago = datetime.utcnow() - timedelta(days=7)
+    daily = db.session.query(
+        db.func.date(Order.order_date).label('d'),
+        db.func.sum(Order.total_price).label('s')
+    ).filter(Order.order_date >= seven_days_ago)\
+     .group_by('d').order_by(db.asc('d')).all()
+    
+    # 3. ステータス分布
     status_data = db.session.query(Order.status, db.func.count(Order.id)).group_by(Order.status).all()
-    ranking = db.session.query(Product.name, db.func.sum(Order.total_price).label('total'), db.func.sum(Order.quantity).label('qty'))\
-        .join(Order).filter(Order.status != 'キャンセル')\
-        .group_by(Product.id).order_by(db.desc('total')).limit(5).all()
+    
+    # 4. 商品売上ランキング
+    ranking = db.session.query(
+        Product.name, 
+        db.func.sum(Order.total_price).label('total'), 
+        db.func.sum(Order.quantity).label('qty')
+    ).join(Order).filter(Order.status != 'キャンセル')\
+     .group_by(Product.id, Product.name).order_by(db.desc('total')).limit(5).all()
 
     return render_template("dashboard.html", 
                            total_sales=total_sales, today_sales=today_sales, 
                            uninvoiced=uninvoiced, low_stock=low_stock,
                            m_labels=[r[0] for r in reversed(monthly)], m_values=[r[1] for r in reversed(monthly)],
+                           d_labels=[r[0] for r in daily], d_values=[r[1] for r in daily],
                            s_labels=[r[0] for r in status_data], s_values=[r[1] for r in status_data],
                            ranking=ranking)
 
