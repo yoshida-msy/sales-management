@@ -320,8 +320,7 @@ def delete_product(id):
         flash("商品が見つかりませんでした")
     return redirect(url_for("products"))
 
-@app.route("/customers", methods=["GET", "POST"])
-
+@app.route("/orders")
 @login_required
 def orders():
     """受注一覧 (検索・絞り込み対応)"""
