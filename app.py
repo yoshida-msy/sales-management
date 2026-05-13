@@ -191,17 +191,29 @@ def index():
 @app.route("/customers", methods=["GET", "POST"])
 @login_required
 def customers():
+    """顧客の登録と一覧表示"""
     if request.method == "POST":
-        new_customer = Customer(
-            company_name=request.form["company_name"],
-            contact_name=request.form["contact_name"],
-            email=request.form["email"],
-            phone=request.form["phone"],
-            address=request.form["address"]
-        )
-        db.session.add(new_customer)
-        db.session.commit()
-        flash("顧客を登録しました")
+        try:
+            # フォームデータの取得
+            new_customer = Customer(
+                company_name=request.form.get("company_name", "").strip(),
+                contact_name=request.form.get("contact_name", "").strip(),
+                email=request.form.get("email", "").strip(),
+                phone=request.form.get("phone", "").strip(),
+                address=request.form.get("address", "").strip()
+            )
+            
+            # 必須項目のチェック
+            if not new_customer.company_name:
+                flash("会社名は必須です")
+                return redirect(url_for("customers"))
+            
+            db.session.add(new_customer)
+            db.session.commit()
+            flash("顧客を登録しました")
+        except Exception as e:
+            db.session.rollback()
+            flash(f"登録エラーが発生しました: {str(e)}")
         return redirect(url_for("customers"))
     
     q = request.args.get("q", "")
@@ -211,11 +223,32 @@ def customers():
 @app.route("/products", methods=["GET", "POST"])
 @login_required
 def products():
+    """商品の登録と一覧表示"""
     if request.method == "POST":
-        new_product = Product(name=request.form["name"], price=request.form["price"], stock=request.form["stock"])
-        db.session.add(new_product)
-        db.session.commit()
-        flash("商品を登録しました")
+        try:
+            # フォーム値を数値に変換 (PostgreSQL対策: 空文字などはエラーになるため)
+            name = request.form.get("name", "").strip()
+            price_str = request.form.get("price", "0")
+            stock_str = request.form.get("stock", "0")
+            
+            if not name:
+                flash("商品名は必須です")
+                return redirect(url_for("products"))
+            
+            new_product = Product(
+                name=name,
+                price=int(price_str) if price_str else 0,
+                stock=int(stock_str) if stock_str else 0
+            )
+            
+            db.session.add(new_product)
+            db.session.commit()
+            flash("商品を登録しました")
+        except ValueError:
+            flash("価格と在庫には数値を入力してください")
+        except Exception as e:
+            db.session.rollback()
+            flash(f"エラー: {str(e)}")
         return redirect(url_for("products"))
     
     q = request.args.get("q", "")
@@ -225,19 +258,30 @@ def products():
 @app.route("/products/edit/<int:id>", methods=["GET", "POST"])
 @login_required
 def edit_product(id):
-    product = Product.query.get_or_404(id)
-    if request.method == "POST":
-        product.name = request.form["name"]
-        product.price = request.form["price"]
-        product.stock = request.form["stock"]
-        db.session.commit()
-        flash("商品情報を更新しました")
+    """商品情報の編集"""
+    product = db.session.get(Product, id) # SQLAlchemy 2.0 形式の取得
+    if not product:
+        flash("商品が見つかりません")
         return redirect(url_for("products"))
+        
+    if request.method == "POST":
+        try:
+            product.name = request.form.get("name", "").strip()
+            product.price = int(request.form.get("price", "0"))
+            product.stock = int(request.form.get("stock", "0"))
+            db.session.commit()
+            flash("商品情報を更新しました")
+            return redirect(url_for("products"))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"更新エラー: {str(e)}")
+            
     return render_template("edit_product.html", product=product)
 
 @app.route("/orders")
 @login_required
 def orders():
+    """受注一覧 (検索・絞り込み対応)"""
     q = request.args.get("q", "")
     status = request.args.get("status", "")
     query = Order.query.join(Product).outerjoin(Customer)
@@ -253,28 +297,41 @@ def orders():
 @app.route("/orders/add", methods=["GET", "POST"])
 @login_required
 def add_order():
+    """新規受注の登録"""
     if request.method == "POST":
-        p_id = request.form["product_id"]
-        c_id = request.form.get("customer_id")
-        qty = int(request.form["quantity"])
-        product = Product.query.get(p_id)
-        
-        if product and product.stock >= qty:
-            new_order = Order(
-                product_id=p_id,
-                customer_id=c_id,
-                quantity=qty,
-                total_price=product.price * qty,
-                status="未請求",
-                created_by=current_user.username
-            )
-            product.stock -= qty
-            db.session.add(new_order)
-            db.session.commit()
-            flash("受注を登録しました")
-            return redirect(url_for("orders"))
-        flash("在庫が不足しています")
-    
+        try:
+            p_id = request.form.get("product_id")
+            c_id = request.form.get("customer_id")
+            qty_str = request.form.get("quantity", "1")
+            
+            # 数値変換とNone対策 (PostgreSQLで空文字をIntegerに入れようとすると500エラーになるため)
+            product_id = int(p_id) if p_id else None
+            # 顧客が未選択の場合は None (NULL) を入れる
+            customer_id = int(c_id) if c_id and c_id != "" else None
+            quantity = int(qty_str) if qty_str else 1
+            
+            product = db.session.get(Product, product_id)
+            
+            if product and product.stock >= quantity:
+                new_order = Order(
+                    product_id=product_id,
+                    customer_id=customer_id,
+                    quantity=quantity,
+                    total_price=product.price * quantity,
+                    status="未請求",
+                    created_by=current_user.username
+                )
+                product.stock -= quantity # 在庫を減らす
+                db.session.add(new_order)
+                db.session.commit()
+                flash("受注を登録しました")
+                return redirect(url_for("orders"))
+            else:
+                flash("商品が見つからないか、在庫が不足しています")
+        except Exception as e:
+            db.session.rollback()
+            flash(f"受注登録エラー: {str(e)}")
+            
     products = Product.query.all()
     customers = Customer.query.all()
     return render_template("add_order.html", products=products, customers=customers)
@@ -282,10 +339,21 @@ def add_order():
 @app.route("/orders/update/<int:id>", methods=["POST"])
 @login_required
 def update_status(id):
-    order = Order.query.get_or_404(id)
-    order.status = request.form["status"]
-    db.session.commit()
-    flash("ステータスを更新しました")
+    """受注ステータスの更新"""
+    order = db.session.get(Order, id)
+    if not order:
+        flash("受注データが見つかりません")
+        return redirect(url_for("orders"))
+        
+    try:
+        order.status = request.form.get("status")
+        order.updated_at = datetime.utcnow()
+        db.session.commit()
+        flash("ステータスを更新しました")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"更新エラー: {str(e)}")
+        
     return redirect(url_for("orders"))
 
 @app.route("/orders/pdf/<int:id>")
