@@ -3,68 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SalesPro - 業務管理システム</title>
-    <!-- Google Fonts & Font Awesome -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>SalesPro - Premium Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Local CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
+<body class="fade-in">
     <div class="app-container">
-        <!-- サイドバー -->
+        <!-- SaaS Sidebar -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <i class="fa-solid fa-rocket logo-icon"></i>
+                <i class="fa-solid fa-bolt-lightning logo-icon"></i>
                 <span class="logo-text">SalesPro</span>
             </div>
             <nav class="sidebar-nav">
                 <ul>
                     <li class="{{ 'active' if request.endpoint == 'index' }}">
-                        <a href="{{ url_for('index') }}"><i class="fa-solid fa-chart-pie"></i> ダッシュボード</a>
+                        <a href="{{ url_for('index') }}"><i class="fa-solid fa-grid-2"></i> ダッシュボード</a>
                     </li>
-                    <li class="{{ 'active' if request.endpoint == 'products' or request.endpoint == 'edit_product' }}">
+                    <li class="{{ 'active' if request.endpoint == 'products' }}">
                         <a href="{{ url_for('products') }}"><i class="fa-solid fa-box"></i> 商品管理</a>
                     </li>
                     <li class="{{ 'active' if request.endpoint == 'customers' }}">
-                        <a href="{{ url_for('customers') }}"><i class="fa-solid fa-users"></i> 顧客管理</a>
+                        <a href="{{ url_for('customers') }}"><i class="fa-solid fa-user-group"></i> 顧客管理</a>
                     </li>
                     <li class="{{ 'active' if request.endpoint == 'orders' }}">
-                        <a href="{{ url_for('orders') }}"><i class="fa-solid fa-file-invoice-dollar"></i> 受注・請求管理</a>
+                        <a href="{{ url_for('orders') }}"><i class="fa-solid fa-receipt"></i> 受注一覧</a>
                     </li>
                     <li class="{{ 'active' if request.endpoint == 'add_order' }}">
-                        <a href="{{ url_for('add_order') }}"><i class="fa-solid fa-circle-plus"></i> 受注登録</a>
+                        <a href="{{ url_for('add_order') }}"><i class="fa-solid fa-plus-circle"></i> 受注登録</a>
                     </li>
                 </ul>
             </nav>
             <div class="sidebar-footer">
-                <div class="user-info">
-                    <i class="fa-solid fa-user-circle"></i> {{ current_user.username }} 
-                    <span style="font-size: 0.7rem; background: #334155; padding: 2px 6px; border-radius: 4px; margin-left: 4px;">{{ current_user.role }}</span>
+                <button id="theme-toggle" class="theme-toggle-btn">
+                    <i class="fa-solid fa-moon"></i> <span>ダークモード</span>
+                </button>
+                <div class="user-info" style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 0 8px;">
+                    <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.75rem;">
+                        {{ current_user.username[0]|upper }}
+                    </div>
+                    <div>
+                        <p style="font-size: 0.8125rem; font-weight: 600;">{{ current_user.username }}</p>
+                        <p style="font-size: 0.6875rem; color: #94a3b8;">{{ current_user.role|upper }}</p>
+                    </div>
                 </div>
-                <a href="{{ url_for('logout') }}" class="btn-logout"><i class="fa-solid fa-right-from-bracket"></i> ログアウト</a>
+                <a href="{{ url_for('logout') }}" class="btn-logout" style="text-decoration: none; color: #94a3b8; font-size: 0.8125rem; display: flex; align-items: center; gap: 8px; padding: 8px;">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i> ログアウト
+                </a>
             </div>
         </aside>
 
-        <!-- メインコンテンツ -->
         <div class="main-wrapper">
             <header class="top-bar">
                 <div class="page-title">
-                    {% block title %}{% endblock %}
+                    <h1 style="font-size: 1.125rem; font-weight: 700; letter-spacing: -0.01em;">{% block title %}{% endblock %}</h1>
                 </div>
                 <div class="top-actions">
-                    <a href="{{ url_for('export_csv') }}" class="btn-secondary small"><i class="fa-solid fa-download"></i> CSV出力</a>
+                    <a href="{{ url_for('export_csv') }}" class="btn-secondary small" style="background: transparent; border: 1px solid var(--border); padding: 8px 14px; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; text-decoration: none; color: var(--text-main); display: inline-flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-download"></i> エクスポート
+                    </a>
                 </div>
             </header>
 
-            <main class="content">
-                <!-- フラッシュメッセージ -->
+            <main class="content slide-up">
                 {% with messages = get_flashed_messages() %}
                   {% if messages %}
                     {% for message in messages %}
-                      <div class="flash-message">{{ message }}</div>
+                      <div class="flash-message" style="background: var(--primary-glow); color: var(--primary); padding: 12px 20px; border-radius: 8px; margin-bottom: 24px; font-weight: 600; font-size: 0.875rem; border: 1px solid var(--primary);">
+                        {{ message }}
+                      </div>
                     {% endfor %}
                   {% endif %}
                 {% endwith %}
@@ -73,5 +82,31 @@
             </main>
         </div>
     </div>
+
+    <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+    <script>
+        // Theme Toggle Logic
+        const themeToggle = document.getElementById('theme-toggle');
+        const body = document.body;
+        
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        if (currentTheme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            themeToggle.innerHTML = '<i class="fa-solid fa-sun"></i> <span>ライトモード</span>';
+        }
+
+        themeToggle.addEventListener('click', () => {
+            let theme = document.documentElement.getAttribute('data-theme');
+            if (theme === 'dark') {
+                document.documentElement.removeAttribute('data-theme');
+                localStorage.setItem('theme', 'light');
+                themeToggle.innerHTML = '<i class="fa-solid fa-moon"></i> <span>ダークモード</span>';
+            } else {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+                themeToggle.innerHTML = '<i class="fa-solid fa-sun"></i> <span>ライトモード</span>';
+            }
+        });
+    </script>
 </body>
 </html>
