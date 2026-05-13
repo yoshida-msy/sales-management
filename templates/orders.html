@@ -75,7 +75,7 @@
             {% for o in orders %}
             <tr>
                 <td style="font-size: 0.8rem;" class="text-muted">
-                    {{ o.order_date[:10] }}<br>
+                    {{ o.order_date.strftime('%Y-%m-%d') if o.order_date else '' }}<br>
                     <span style="font-size: 0.7rem;">担当: {{ o.created_by }}</span>
                 </td>
                 <td class="font-bold">{{ o.company_name or '個人/未登録' }}</td>
