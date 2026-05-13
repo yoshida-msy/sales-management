@@ -94,32 +94,13 @@ def load_user(user_id):
 # --- 初期データ投入 (Seed Data) ---
 
 def seed_db():
-    """
-    初回起動時のみ基礎データを投入します。
-    既にデータが存在する場合は何もしない「冪等性」を確保しています。
-    """
     try:
-        # 1. 管理者アカウント (admin / password)
         if not User.query.filter_by(username='admin').first():
-            admin = User(
-                username='admin', 
-                password=generate_password_hash('password'), 
-                role='admin'
-            )
+            admin = User(username='admin', password=generate_password_hash('password'), role='admin')
             db.session.add(admin)
-            logger.info("SEED: Admin account created.")
-
-        # 2. スタッフアカウント (staff / password)
         if not User.query.filter_by(username='staff').first():
-            staff = User(
-                username='staff', 
-                password=generate_password_hash('password'), 
-                role='staff'
-            )
+            staff = User(username='staff', password=generate_password_hash('password'), role='staff')
             db.session.add(staff)
-            logger.info("SEED: Staff account created.")
-
-        # 3. 商品初期データ
         if Product.query.count() == 0:
             sample_prods = [
                 Product(name="MacBook Pro 14", price=280000, stock=10),
@@ -128,38 +109,29 @@ def seed_db():
                 Product(name="Logicool MX Master 3S", price=15000, stock=50)
             ]
             db.session.add_all(sample_prods)
-            logger.info("SEED: Sample products added.")
-
-        # 4. 顧客初期データ
         if Customer.query.count() == 0:
             sample_custs = [
                 Customer(company_name="株式会社テクノ未来", contact_name="田中 太郎", email="tanaka@example.com", phone="03-1111-2222", address="東京都千代田区"),
                 Customer(company_name="グローバル商事株式会社", contact_name="佐藤 次郎", email="sato@example.com", phone="06-3333-4444", address="大阪府大阪市")
             ]
             db.session.add_all(sample_custs)
-            logger.info("SEED: Sample customers added.")
-
         db.session.commit()
-        logger.info("SEED: All initial data check/creation completed.")
     except Exception as e:
         db.session.rollback()
         logger.error(f"SEED ERROR: {str(e)}")
 
-# アプリ起動時に安全に初期化を実行
 with app.app_context():
-    db.create_all() # テーブルがなければ作成
-    seed_db()       # データがなければ投入
+    db.create_all()
+    seed_db()
 
-# --- Flask CLIコマンド (手動リセット用) ---
 @app.cli.command("init-db")
 def init_db_command():
-    """DBを完全にリセットし最新の構造にします(全消去)"""
     db.drop_all()
     db.create_all()
     seed_db()
     print("Database has been RESET successfully.")
 
-# --- ルート定義 (ビジネスロジック) ---
+# --- ルート定義 ---
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -181,35 +153,47 @@ def logout():
 @app.route("/")
 @login_required
 def index():
-    """分析ダッシュボード"""
-    total_sales = db.session.query(db.func.sum(Order.total_price)).filter(Order.status != 'キャンセル').scalar() or 0
-    today = datetime.utcnow().date()
-    today_sales = db.session.query(db.func.sum(Order.total_price)).filter(
-        db.func.date(Order.order_date) == today,
-        Order.status != 'キャンセル'
-    ).scalar() or 0
-    uninvoiced = Order.query.filter(Order.status.in_(['未対応', '未請求'])).count()
-    low_stock = Product.query.filter(Product.stock < 5).count()
-    
-    # グラフ用データ
-    is_postgres = db.engine.url.drivername.startswith("postgresql")
-    if is_postgres:
-        monthly_fmt = db.func.to_char(Order.order_date, 'YYYY-MM')
-    else:
-        monthly_fmt = db.func.strftime('%Y-%m', Order.order_date)
+    """分析ダッシュボード (PostgreSQL/SQLite両対応版)"""
+    try:
+        total_sales = db.session.query(db.func.sum(Order.total_price)).filter(Order.status != 'キャンセル').scalar() or 0
+        today = datetime.utcnow().date()
+        today_sales = db.session.query(db.func.sum(Order.total_price)).filter(
+            db.func.date(Order.order_date) == today,
+            Order.status != 'キャンセル'
+        ).scalar() or 0
+        uninvoiced = Order.query.filter(Order.status.in_(['未対応', '未請求'])).count()
+        low_stock = Product.query.filter(Product.stock < 5).count()
+        
+        is_postgres = db.engine.url.drivername.startswith("postgresql")
+        if is_postgres:
+            monthly_fmt = db.func.to_char(Order.order_date, 'YYYY-MM')
+        else:
+            monthly_fmt = db.func.strftime('%Y-%m', Order.order_date)
 
-    monthly = db.session.query(monthly_fmt.label('m'), db.func.sum(Order.total_price)).group_by('m').order_by(db.desc('m')).limit(6).all()
-    status_data = db.session.query(Order.status, db.func.count(Order.id)).group_by(Order.status).all()
-    ranking = db.session.query(Product.name, db.func.sum(Order.total_price).label('total'), db.func.sum(Order.quantity).label('qty'))\
-        .join(Order).filter(Order.status != 'キャンセル')\
-        .group_by(Product.id, Product.name).order_by(db.desc('total')).limit(5).all()
+        monthly_data = db.session.query(monthly_fmt.label('m'), db.func.sum(Order.total_price)).group_by('m').order_by(db.desc('m')).limit(6).all()
+        m_labels = [r[0] for r in reversed(monthly_data)]
+        m_values = [r[1] for r in reversed(monthly_data)]
 
-    return render_template("dashboard.html", 
-                           total_sales=total_sales, today_sales=today_sales, 
-                           uninvoiced=uninvoiced, low_stock=low_stock,
-                           m_labels=[r[0] for r in reversed(monthly)], m_values=[r[1] for r in reversed(monthly)],
-                           s_labels=[r[0] for r in status_data], s_values=[r[1] for r in status_data],
-                           ranking=ranking)
+        seven_days_ago = datetime.utcnow() - timedelta(days=7)
+        daily_data = db.session.query(db.func.date(Order.order_date).label('d'), db.func.sum(Order.total_price)).filter(Order.order_date >= seven_days_ago).group_by('d').order_by(db.asc('d')).all()
+        d_labels = [str(r[0]) for r in daily_data]
+        d_values = [r[1] for r in daily_data]
+
+        status_data = db.session.query(Order.status, db.func.count(Order.id)).group_by(Order.status).all()
+        s_labels = [r[0] for r in status_data]
+        s_values = [r[1] for r in status_data]
+
+        ranking = db.session.query(Product.name, db.func.sum(Order.total_price).label('total'), db.func.sum(Order.quantity).label('qty'))\
+            .join(Order).filter(Order.status != 'キャンセル')\
+            .group_by(Product.id, Product.name).order_by(db.desc('total')).limit(5).all()
+
+        return render_template("dashboard.html", 
+                               total_sales=total_sales, today_sales=today_sales, uninvoiced=uninvoiced, low_stock=low_stock,
+                               m_labels=m_labels, m_values=m_values, d_labels=d_labels, d_values=d_values,
+                               s_labels=s_labels, s_values=s_values, ranking=ranking)
+    except Exception as e:
+        logger.error(f"Dashboard Error: {str(e)}")
+        return render_template("dashboard.html", total_sales=0, today_sales=0, uninvoiced=0, low_stock=0, m_labels=[], m_values=[], d_labels=[], d_values=[], s_labels=[], s_values=[], ranking=[])
 
 @app.route("/customers", methods=["GET", "POST"])
 @login_required
@@ -273,18 +257,15 @@ def products():
             db.session.rollback()
             flash(f"エラー: {str(e)}")
         return redirect(url_for("products"))
-    
     q = request.args.get("q", "")
     low_stock = request.args.get("low_stock", "")
     min_price = request.args.get("min_price", "")
     max_price = request.args.get("max_price", "")
-
     query = Product.query
     if q: query = query.filter(Product.name.contains(q))
     if low_stock: query = query.filter(Product.stock < 5)
     if min_price: query = query.filter(Product.price >= int(min_price))
     if max_price: query = query.filter(Product.price <= int(max_price))
-
     items = query.order_by(Product.stock.asc()).all()
     return render_template("products.html", products=items, q=q, low_stock=low_stock, min_price=min_price, max_price=max_price)
 
@@ -331,7 +312,6 @@ def orders():
     date_from = request.args.get("date_from", "")
     date_to = request.args.get("date_to", "")
     uninvoiced = request.args.get("uninvoiced", "")
-
     query = Order.query.join(Product).outerjoin(Customer)
     if q: query = query.filter(Product.name.contains(q))
     if customer_q: query = query.filter(Customer.company_name.contains(customer_q))
@@ -339,7 +319,6 @@ def orders():
     if date_from: query = query.filter(db.func.date(Order.order_date) >= date_from)
     if date_to: query = query.filter(db.func.date(Order.order_date) <= date_to)
     if uninvoiced: query = query.filter(Order.status.in_(['未対応', '未請求']))
-
     items = query.order_by(Order.order_date.desc()).all()
     return render_template("orders.html", orders=items, q=q, customer_q=customer_q, status_filter=status, date_from=date_from, date_to=date_to, uninvoiced=uninvoiced)
 
@@ -400,8 +379,7 @@ def generate_pdf(id):
     p.drawString(100, 730, f"Date: {order.order_date.strftime('%Y-%m-%d')}")
     p.line(100, 710, 500, 710)
     p.drawString(100, 680, f"Product: {order.product.name}")
-    p.drawString(100, 660, f"Quantity: {order.quantity}")
-    p.drawString(100, 640, f"Total: {order.total_price:,} JPY")
+    p.drawString(100, 660, f"Total: {order.total_price:,} JPY")
     p.showPage()
     p.save()
     buffer.seek(0)
