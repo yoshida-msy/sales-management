@@ -104,7 +104,17 @@ def seed_db():
         db.session.add(staff)
     db.session.commit()
 
-# アプリ起動時にテーブル作成 (Migrationを使わない場合の予備)
+# --- データベース初期化 (CLIコマンド) ---
+
+@app.cli.command("init-db")
+def init_db_command():
+    """データベースをリセットして最新の構造にします。※既存データは消去されます。"""
+    db.drop_all()
+    db.create_all()
+    seed_db()
+    print("Database has been reset to the latest schema.")
+
+# アプリ起動時にテーブル作成 (存在しない場合のみ)
 with app.app_context():
     db.create_all()
     seed_db()
