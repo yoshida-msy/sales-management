@@ -220,6 +220,27 @@ def customers():
     items = Customer.query.filter(Customer.company_name.contains(q)).all()
     return render_template("customers.html", customers=items, q=q)
 
+@app.route("/customers/delete/<int:id>", methods=["POST"])
+@login_required
+def delete_customer(id):
+    """顧客を削除する (管理者のみ)"""
+    if current_user.role != 'admin':
+        flash("管理者権限が必要です")
+        return redirect(url_for("customers"))
+        
+    customer = db.session.get(Customer, id)
+    if customer:
+        try:
+            db.session.delete(customer)
+            db.session.commit()
+            flash("顧客を削除しました")
+        except Exception as e:
+            db.session.rollback()
+            flash(f"削除エラー: この顧客に関連する受注データがある可能性があります")
+    else:
+        flash("顧客が見つかりませんでした")
+    return redirect(url_for("customers"))
+
 @app.route("/products", methods=["GET", "POST"])
 @login_required
 def products():
@@ -263,7 +284,7 @@ def edit_product(id):
     if not product:
         flash("商品が見つかりません")
         return redirect(url_for("products"))
-        
+
     if request.method == "POST":
         try:
             product.name = request.form.get("name", "").strip()
@@ -275,10 +296,32 @@ def edit_product(id):
         except Exception as e:
             db.session.rollback()
             flash(f"更新エラー: {str(e)}")
-            
+
     return render_template("edit_product.html", product=product)
 
-@app.route("/orders")
+@app.route("/products/delete/<int:id>", methods=["POST"])
+@login_required
+def delete_product(id):
+    """商品を削除する (管理者のみ)"""
+    if current_user.role != 'admin':
+        flash("管理者権限が必要です")
+        return redirect(url_for("products"))
+
+    product = db.session.get(Product, id)
+    if product:
+        try:
+            db.session.delete(product)
+            db.session.commit()
+            flash("商品を削除しました")
+        except Exception as e:
+            db.session.rollback()
+            flash(f"削除エラー: 他のデータで使用されている可能性があります")
+    else:
+        flash("商品が見つかりませんでした")
+    return redirect(url_for("products"))
+
+@app.route("/customers", methods=["GET", "POST"])
+
 @login_required
 def orders():
     """受注一覧 (検索・絞り込み対応)"""
