@@ -342,40 +342,61 @@ def add_order():
     """新規受注の登録"""
     if request.method == "POST":
         try:
+            # フォームから値を取得
             p_id = request.form.get("product_id")
             c_id = request.form.get("customer_id")
             qty_str = request.form.get("quantity", "1")
-            
-            # 数値変換とNone対策 (PostgreSQLで空文字をIntegerに入れようとすると500エラーになるため)
-            product_id = int(p_id) if p_id else None
-            # 顧客が未選択の場合は None (NULL) を入れる
-            customer_id = int(c_id) if c_id and c_id != "" else None
+
+            # デバッグログ (RenderのLogsに表示されます)
+            print(f"DEBUG: add_order attempt - product_id: {p_id}, customer_id: {c_id}, quantity: {qty_str}")
+
+            # IDが空の場合は None に変換 (PostgreSQL対策)
+            product_id = int(p_id) if p_id and p_id.strip() != "" else None
+            customer_id = int(c_id) if c_id and c_id.strip() != "" else None
             quantity = int(qty_str) if qty_str else 1
-            
+
+            if not product_id:
+                flash("商品を選択してください")
+                return redirect(url_for("add_order"))
+
+            # 商品情報を取得 (SQLAlchemy 2.0 形式)
             product = db.session.get(Product, product_id)
+            customer = db.session.get(Customer, customer_id) if customer_id else None
             
             if product and product.stock >= quantity:
+                # 受注オブジェクトの作成
                 new_order = Order(
-                    product_id=product_id,
-                    customer_id=customer_id,
+                    product_id=product.id,
+                    customer_id=customer.id if customer else None,
                     quantity=quantity,
                     total_price=product.price * quantity,
                     status="未請求",
-                    created_by=current_user.username
+                    created_by=current_user.username,
+                    order_date=datetime.utcnow() # 明示的にセット
                 )
-                product.stock -= quantity # 在庫を減らす
+                
+                # 在庫の更新
+                product.stock -= quantity
+                
                 db.session.add(new_order)
                 db.session.commit()
+                print(f"DEBUG: Order created successfully. ID: {new_order.id}")
                 flash("受注を登録しました")
                 return redirect(url_for("orders"))
             else:
-                flash("商品が見つからないか、在庫が不足しています")
+                msg = "商品が見つかりません" if not product else "在庫が不足しています"
+                flash(msg)
         except Exception as e:
             db.session.rollback()
-            flash(f"受注登録エラー: {str(e)}")
+            # エラーの詳細をログに出力
+            import traceback
+            print(f"ERROR in add_order: {str(e)}")
+            print(traceback.format_exc())
+            flash(f"受注登録中にエラーが発生しました: {str(e)}")
             
-    products = Product.query.all()
-    customers = Customer.query.all()
+    # GETリクエスト、またはエラー時の再表示
+    products = Product.query.order_by(Product.name).all()
+    customers = Customer.query.order_by(Customer.company_name).all()
     return render_template("add_order.html", products=products, customers=customers)
 
 @app.route("/orders/update/<int:id>", methods=["POST"])
