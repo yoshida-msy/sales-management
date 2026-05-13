@@ -1,6 +1,7 @@
 import io
 import csv
 import os
+import logging
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, make_response, send_file
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -13,28 +14,26 @@ from dotenv import load_dotenv
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 
-# .env ファイルがあれば読み込む (ローカル開発用)
+# ローカル開発用 .env 読み込み
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, instance_relative_config=True)
 app.secret_key = os.environ.get("SECRET_KEY", "sales-pro-secret-key-2026")
 
-# --- データベース設定 ---
-# プロジェクトのルートディレクトリを絶対パスで取得
-basedir = os.path.abspath(os.path.dirname(__file__))
-# instance フォルダのパスを作成
-instance_path = os.path.join(basedir, 'instance')
+# ロギング設定 (RenderのLogsで見れるようになります)
+logging.basicConfig(level=logging.INFO)
+logger = app.logger
 
-# Renderや本番環境で instance フォルダが存在しない場合に自動生成
+# --- データベース設定 ---
+basedir = os.path.abspath(os.path.dirname(__file__))
+instance_path = os.path.join(basedir, 'instance')
 if not os.path.exists(instance_path):
     os.makedirs(instance_path)
 
-# Render/Neon環境では DATABASE_URL が設定されます。
-# 設定されていない場合は、安全な絶対パスで SQLite を使用します。
 default_db = f"sqlite:///{os.path.join(instance_path, 'database.db')}"
 db_url = os.environ.get("DATABASE_URL", default_db)
 
-# Render(Neon)の postgres:// を postgresql:// に変換 (SQLAlchemy互換性)
+# Render/Neonの postgres:// を postgresql:// に変換
 if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
 
@@ -44,19 +43,14 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-# --- ログイン管理 ---
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = "login"
-
-# --- データベースモデル定義 (実務レベルの設計) ---
+# --- データベースモデル ---
 
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
-    role = db.Column(db.String(20), default='staff') # 'admin' or 'staff'
+    role = db.Column(db.String(20), default='staff')
 
 class Product(db.Model):
     __tablename__ = 'products'
@@ -64,7 +58,6 @@ class Product(db.Model):
     name = db.Column(db.String(100), nullable=False)
     price = db.Column(db.Integer, nullable=False)
     stock = db.Column(db.Integer, nullable=False)
-    # リレーションシップ
     orders = db.relationship('Order', backref='product', lazy=True)
 
 class Customer(db.Model):
@@ -75,7 +68,6 @@ class Customer(db.Model):
     email = db.Column(db.String(120))
     phone = db.Column(db.String(20))
     address = db.Column(db.String(200))
-    # リレーションシップ
     orders = db.relationship('Order', backref='customer', lazy=True)
 
 class Order(db.Model):
@@ -85,41 +77,89 @@ class Order(db.Model):
     customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'))
     quantity = db.Column(db.Integer, nullable=False)
     total_price = db.Column(db.Integer, nullable=False)
-    status = db.Column(db.String(20), nullable=False, default='未請求')
+    status = db.Column(db.String(20), nullable=False, default='未対応')
     order_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     created_by = db.Column(db.String(80))
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
+# --- ログイン管理 ---
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login"
+
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    return db.session.get(User, int(user_id))
 
-# --- 初期化・シードデータ投入 ---
+# --- 初期データ投入 (Seed Data) ---
+
 def seed_db():
-    if not User.query.filter_by(username='admin').first():
-        admin = User(username='admin', password=generate_password_hash('password'), role='admin')
-        db.session.add(admin)
-    if not User.query.filter_by(username='staff').first():
-        staff = User(username='staff', password=generate_password_hash('password'), role='staff')
-        db.session.add(staff)
-    db.session.commit()
+    """
+    初回起動時のみ基礎データを投入します。
+    既にデータが存在する場合は何もしない「冪等性」を確保しています。
+    """
+    try:
+        # 1. 管理者アカウント (admin / password)
+        if not User.query.filter_by(username='admin').first():
+            admin = User(
+                username='admin', 
+                password=generate_password_hash('password'), 
+                role='admin'
+            )
+            db.session.add(admin)
+            logger.info("SEED: Admin account created.")
 
-# --- データベース初期化 (CLIコマンド) ---
+        # 2. スタッフアカウント (staff / password)
+        if not User.query.filter_by(username='staff').first():
+            staff = User(
+                username='staff', 
+                password=generate_password_hash('password'), 
+                role='staff'
+            )
+            db.session.add(staff)
+            logger.info("SEED: Staff account created.")
 
+        # 3. 商品初期データ
+        if Product.query.count() == 0:
+            sample_prods = [
+                Product(name="MacBook Pro 14", price=280000, stock=10),
+                Product(name="Dell 27インチモニター", price=45000, stock=20),
+                Product(name="HHKB キーボード", price=35000, stock=15),
+                Product(name="Logicool MX Master 3S", price=15000, stock=50)
+            ]
+            db.session.add_all(sample_prods)
+            logger.info("SEED: Sample products added.")
+
+        # 4. 顧客初期データ
+        if Customer.query.count() == 0:
+            sample_custs = [
+                Customer(company_name="株式会社テクノ未来", contact_name="田中 太郎", email="tanaka@example.com", phone="03-1111-2222", address="東京都千代田区"),
+                Customer(company_name="グローバル商事株式会社", contact_name="佐藤 次郎", email="sato@example.com", phone="06-3333-4444", address="大阪府大阪市")
+            ]
+            db.session.add_all(sample_custs)
+            logger.info("SEED: Sample customers added.")
+
+        db.session.commit()
+        logger.info("SEED: All initial data check/creation completed.")
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"SEED ERROR: {str(e)}")
+
+# アプリ起動時に安全に初期化を実行
+with app.app_context():
+    db.create_all() # テーブルがなければ作成
+    seed_db()       # データがなければ投入
+
+# --- Flask CLIコマンド (手動リセット用) ---
 @app.cli.command("init-db")
 def init_db_command():
-    """データベースをリセットして最新の構造にします。※既存データは消去されます。"""
+    """DBを完全にリセットし最新の構造にします(全消去)"""
     db.drop_all()
     db.create_all()
     seed_db()
-    print("Database has been reset to the latest schema.")
+    print("Database has been RESET successfully.")
 
-# アプリ起動時にテーブル作成 (存在しない場合のみ)
-with app.app_context():
-    db.create_all()
-    seed_db()
-
-# --- ルート定義 ---
+# --- ルート定義 (ビジネスロジック) ---
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -141,70 +181,41 @@ def logout():
 @app.route("/")
 @login_required
 def index():
-    """ダッシュボード (分析画面)"""
-    # KPIデータ
+    """分析ダッシュボード"""
     total_sales = db.session.query(db.func.sum(Order.total_price)).filter(Order.status != 'キャンセル').scalar() or 0
-    
-    # 本日売上 (DBごとに日付取得方法を調整)
     today = datetime.utcnow().date()
     today_sales = db.session.query(db.func.sum(Order.total_price)).filter(
         db.func.date(Order.order_date) == today,
         Order.status != 'キャンセル'
     ).scalar() or 0
-    
-    uninvoiced = Order.query.filter_by(status='未請求').count()
+    uninvoiced = Order.query.filter(Order.status.in_(['未対応', '未請求'])).count()
     low_stock = Product.query.filter(Product.stock < 5).count()
     
-    # --- グラフ用データ ---
-    
-    # DBエンジンの判別
+    # グラフ用データ
     is_postgres = db.engine.url.drivername.startswith("postgresql")
-
-    # 1. 月別売上推移
     if is_postgres:
         monthly_fmt = db.func.to_char(Order.order_date, 'YYYY-MM')
     else:
         monthly_fmt = db.func.strftime('%Y-%m', Order.order_date)
 
-    monthly = db.session.query(
-        monthly_fmt.label('m'),
-        db.func.sum(Order.total_price).label('s')
-    ).group_by('m').order_by(db.desc('m')).limit(6).all()
-    
-    # 2. 日別売上グラフ (直近7日間)
-    seven_days_ago = datetime.utcnow() - timedelta(days=7)
-    daily = db.session.query(
-        db.func.date(Order.order_date).label('d'),
-        db.func.sum(Order.total_price).label('s')
-    ).filter(Order.order_date >= seven_days_ago)\
-     .group_by('d').order_by(db.asc('d')).all()
-    
-    # 3. ステータス分布
+    monthly = db.session.query(monthly_fmt.label('m'), db.func.sum(Order.total_price)).group_by('m').order_by(db.desc('m')).limit(6).all()
     status_data = db.session.query(Order.status, db.func.count(Order.id)).group_by(Order.status).all()
-    
-    # 4. 商品売上ランキング
-    ranking = db.session.query(
-        Product.name, 
-        db.func.sum(Order.total_price).label('total'), 
-        db.func.sum(Order.quantity).label('qty')
-    ).join(Order).filter(Order.status != 'キャンセル')\
-     .group_by(Product.id, Product.name).order_by(db.desc('total')).limit(5).all()
+    ranking = db.session.query(Product.name, db.func.sum(Order.total_price).label('total'), db.func.sum(Order.quantity).label('qty'))\
+        .join(Order).filter(Order.status != 'キャンセル')\
+        .group_by(Product.id, Product.name).order_by(db.desc('total')).limit(5).all()
 
     return render_template("dashboard.html", 
                            total_sales=total_sales, today_sales=today_sales, 
                            uninvoiced=uninvoiced, low_stock=low_stock,
                            m_labels=[r[0] for r in reversed(monthly)], m_values=[r[1] for r in reversed(monthly)],
-                           d_labels=[r[0] for r in daily], d_values=[r[1] for r in daily],
                            s_labels=[r[0] for r in status_data], s_values=[r[1] for r in status_data],
                            ranking=ranking)
 
 @app.route("/customers", methods=["GET", "POST"])
 @login_required
 def customers():
-    """顧客の登録と一覧表示"""
     if request.method == "POST":
         try:
-            # フォームデータの取得
             new_customer = Customer(
                 company_name=request.form.get("company_name", "").strip(),
                 contact_name=request.form.get("contact_name", "").strip(),
@@ -212,20 +223,16 @@ def customers():
                 phone=request.form.get("phone", "").strip(),
                 address=request.form.get("address", "").strip()
             )
-            
-            # 必須項目のチェック
             if not new_customer.company_name:
                 flash("会社名は必須です")
                 return redirect(url_for("customers"))
-            
             db.session.add(new_customer)
             db.session.commit()
             flash("顧客を登録しました")
         except Exception as e:
             db.session.rollback()
-            flash(f"登録エラーが発生しました: {str(e)}")
+            flash(f"エラー: {str(e)}")
         return redirect(url_for("customers"))
-    
     q = request.args.get("q", "")
     items = Customer.query.filter(Customer.company_name.contains(q)).all()
     return render_template("customers.html", customers=items, q=q)
@@ -233,178 +240,137 @@ def customers():
 @app.route("/customers/delete/<int:id>", methods=["POST"])
 @login_required
 def delete_customer(id):
-    """顧客を削除する (管理者のみ)"""
     if current_user.role != 'admin':
         flash("管理者権限が必要です")
         return redirect(url_for("customers"))
-        
     customer = db.session.get(Customer, id)
     if customer:
         try:
             db.session.delete(customer)
             db.session.commit()
             flash("顧客を削除しました")
-        except Exception as e:
+        except:
             db.session.rollback()
-            flash(f"削除エラー: この顧客に関連する受注データがある可能性があります")
-    else:
-        flash("顧客が見つかりませんでした")
+            flash("受注データが存在するため削除できません")
     return redirect(url_for("customers"))
 
 @app.route("/products", methods=["GET", "POST"])
 @login_required
 def products():
-    """商品の登録と一覧表示"""
     if request.method == "POST":
         try:
-            # フォーム値を数値に変換 (PostgreSQL対策: 空文字などはエラーになるため)
             name = request.form.get("name", "").strip()
             price_str = request.form.get("price", "0")
             stock_str = request.form.get("stock", "0")
-            
             if not name:
                 flash("商品名は必須です")
                 return redirect(url_for("products"))
-            
-            new_product = Product(
-                name=name,
-                price=int(price_str) if price_str else 0,
-                stock=int(stock_str) if stock_str else 0
-            )
-            
+            new_product = Product(name=name, price=int(price_str), stock=int(stock_str))
             db.session.add(new_product)
             db.session.commit()
             flash("商品を登録しました")
-        except ValueError:
-            flash("価格と在庫には数値を入力してください")
         except Exception as e:
             db.session.rollback()
             flash(f"エラー: {str(e)}")
         return redirect(url_for("products"))
     
     q = request.args.get("q", "")
-    items = Product.query.filter(Product.name.contains(q)).order_by(Product.stock.asc()).all()
-    return render_template("products.html", products=items, q=q)
+    low_stock = request.args.get("low_stock", "")
+    min_price = request.args.get("min_price", "")
+    max_price = request.args.get("max_price", "")
+
+    query = Product.query
+    if q: query = query.filter(Product.name.contains(q))
+    if low_stock: query = query.filter(Product.stock < 5)
+    if min_price: query = query.filter(Product.price >= int(min_price))
+    if max_price: query = query.filter(Product.price <= int(max_price))
+
+    items = query.order_by(Product.stock.asc()).all()
+    return render_template("products.html", products=items, q=q, low_stock=low_stock, min_price=min_price, max_price=max_price)
 
 @app.route("/products/edit/<int:id>", methods=["GET", "POST"])
 @login_required
 def edit_product(id):
-    """商品情報の編集"""
-    product = db.session.get(Product, id) # SQLAlchemy 2.0 形式の取得
-    if not product:
-        flash("商品が見つかりません")
-        return redirect(url_for("products"))
-
+    product = db.session.get(Product, id)
     if request.method == "POST":
         try:
             product.name = request.form.get("name", "").strip()
             product.price = int(request.form.get("price", "0"))
             product.stock = int(request.form.get("stock", "0"))
             db.session.commit()
-            flash("商品情報を更新しました")
+            flash("更新しました")
             return redirect(url_for("products"))
-        except Exception as e:
+        except:
             db.session.rollback()
-            flash(f"更新エラー: {str(e)}")
-
+            flash("更新に失敗しました")
     return render_template("edit_product.html", product=product)
 
 @app.route("/products/delete/<int:id>", methods=["POST"])
 @login_required
 def delete_product(id):
-    """商品を削除する (管理者のみ)"""
     if current_user.role != 'admin':
         flash("管理者権限が必要です")
         return redirect(url_for("products"))
-
     product = db.session.get(Product, id)
     if product:
         try:
             db.session.delete(product)
             db.session.commit()
-            flash("商品を削除しました")
-        except Exception as e:
+            flash("削除しました")
+        except:
             db.session.rollback()
-            flash(f"削除エラー: 他のデータで使用されている可能性があります")
-    else:
-        flash("商品が見つかりませんでした")
+            flash("他のデータで使用されているため削除できません")
     return redirect(url_for("products"))
 
 @app.route("/orders")
 @login_required
 def orders():
-    """受注一覧 (検索・絞り込み対応)"""
     q = request.args.get("q", "")
+    customer_q = request.args.get("customer_q", "")
     status = request.args.get("status", "")
+    date_from = request.args.get("date_from", "")
+    date_to = request.args.get("date_to", "")
+    uninvoiced = request.args.get("uninvoiced", "")
+
     query = Order.query.join(Product).outerjoin(Customer)
-    
-    if q:
-        query = query.filter(Product.name.contains(q))
-    if status:
-        query = query.filter(Order.status == status)
-        
+    if q: query = query.filter(Product.name.contains(q))
+    if customer_q: query = query.filter(Customer.company_name.contains(customer_q))
+    if status: query = query.filter(Order.status == status)
+    if date_from: query = query.filter(db.func.date(Order.order_date) >= date_from)
+    if date_to: query = query.filter(db.func.date(Order.order_date) <= date_to)
+    if uninvoiced: query = query.filter(Order.status.in_(['未対応', '未請求']))
+
     items = query.order_by(Order.order_date.desc()).all()
-    return render_template("orders.html", orders=items, q=q, status_filter=status)
+    return render_template("orders.html", orders=items, q=q, customer_q=customer_q, status_filter=status, date_from=date_from, date_to=date_to, uninvoiced=uninvoiced)
 
 @app.route("/orders/add", methods=["GET", "POST"])
 @login_required
 def add_order():
-    """新規受注の登録"""
     if request.method == "POST":
         try:
-            # フォームから値を取得
             p_id = request.form.get("product_id")
             c_id = request.form.get("customer_id")
-            qty_str = request.form.get("quantity", "1")
-
-            # デバッグログ (RenderのLogsに表示されます)
-            print(f"DEBUG: add_order attempt - product_id: {p_id}, customer_id: {c_id}, quantity: {qty_str}")
-
-            # IDが空の場合は None に変換 (PostgreSQL対策)
-            product_id = int(p_id) if p_id and p_id.strip() != "" else None
-            customer_id = int(c_id) if c_id and c_id.strip() != "" else None
-            quantity = int(qty_str) if qty_str else 1
-
-            if not product_id:
-                flash("商品を選択してください")
-                return redirect(url_for("add_order"))
-
-            # 商品情報を取得 (SQLAlchemy 2.0 形式)
-            product = db.session.get(Product, product_id)
-            customer = db.session.get(Customer, customer_id) if customer_id else None
-            
-            if product and product.stock >= quantity:
-                # 受注オブジェクトの作成
+            qty = int(request.form.get("quantity", "1"))
+            product = db.session.get(Product, int(p_id))
+            if product and product.stock >= qty:
                 new_order = Order(
                     product_id=product.id,
-                    customer_id=customer.id if customer else None,
-                    quantity=quantity,
-                    total_price=product.price * quantity,
-                    status="未請求",
+                    customer_id=int(c_id) if c_id else None,
+                    quantity=qty,
+                    total_price=product.price * qty,
+                    status="未対応",
                     created_by=current_user.username,
-                    order_date=datetime.utcnow() # 明示的にセット
+                    order_date=datetime.utcnow()
                 )
-                
-                # 在庫の更新
-                product.stock -= quantity
-                
+                product.stock -= qty
                 db.session.add(new_order)
                 db.session.commit()
-                print(f"DEBUG: Order created successfully. ID: {new_order.id}")
                 flash("受注を登録しました")
                 return redirect(url_for("orders"))
-            else:
-                msg = "商品が見つかりません" if not product else "在庫が不足しています"
-                flash(msg)
+            flash("在庫不足または商品が見つかりません")
         except Exception as e:
             db.session.rollback()
-            # エラーの詳細をログに出力
-            import traceback
-            print(f"ERROR in add_order: {str(e)}")
-            print(traceback.format_exc())
-            flash(f"受注登録中にエラーが発生しました: {str(e)}")
-            
-    # GETリクエスト、またはエラー時の再表示
+            flash(f"エラー: {str(e)}")
     products = Product.query.order_by(Product.name).all()
     customers = Customer.query.order_by(Customer.company_name).all()
     return render_template("add_order.html", products=products, customers=customers)
@@ -412,38 +378,30 @@ def add_order():
 @app.route("/orders/update/<int:id>", methods=["POST"])
 @login_required
 def update_status(id):
-    """受注ステータスの更新"""
     order = db.session.get(Order, id)
-    if not order:
-        flash("受注データが見つかりません")
-        return redirect(url_for("orders"))
-        
-    try:
+    if order:
         order.status = request.form.get("status")
         order.updated_at = datetime.utcnow()
         db.session.commit()
-        flash("ステータスを更新しました")
-    except Exception as e:
-        db.session.rollback()
-        flash(f"更新エラー: {str(e)}")
-        
+        flash("更新しました")
     return redirect(url_for("orders"))
 
 @app.route("/orders/pdf/<int:id>")
 @login_required
 def generate_pdf(id):
-    order = Order.query.get_or_404(id)
+    order = db.session.get(Order, id)
+    if not order: return "NotFound", 404
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=A4)
     p.setFont("Helvetica", 16)
-    p.drawString(100, 800, f"INVOICE (Order ID: {order.id})")
+    p.drawString(100, 800, f"INVOICE (ID: {order.id})")
     p.setFont("Helvetica", 12)
     p.drawString(100, 750, f"Customer: {order.customer.company_name if order.customer else 'N/A'}")
-    p.drawString(100, 730, f"Date: {order.order_date.strftime('%Y-%m-%d %H:%M')}")
+    p.drawString(100, 730, f"Date: {order.order_date.strftime('%Y-%m-%d')}")
     p.line(100, 710, 500, 710)
     p.drawString(100, 680, f"Product: {order.product.name}")
     p.drawString(100, 660, f"Quantity: {order.quantity}")
-    p.drawString(100, 640, f"Total Price: {order.total_price:,} JPY")
+    p.drawString(100, 640, f"Total: {order.total_price:,} JPY")
     p.showPage()
     p.save()
     buffer.seek(0)
@@ -454,18 +412,9 @@ def generate_pdf(id):
 def export_csv():
     si = io.StringIO()
     cw = csv.writer(si)
-    cw.writerow(["ID", "日付", "顧客名", "商品名", "数量", "合計金額", "状態"])
-    orders = Order.query.all()
-    for o in orders:
-        cw.writerow([
-            o.id, 
-            o.order_date.strftime('%Y-%m-%d %H:%M'), 
-            o.customer.company_name if o.customer else 'N/A', 
-            o.product.name, 
-            o.quantity, 
-            o.total_price, 
-            o.status
-        ])
+    cw.writerow(["ID", "日付", "顧客", "商品", "金額", "状態"])
+    for o in Order.query.all():
+        cw.writerow([o.id, o.order_date, o.customer.company_name if o.customer else 'N/A', o.product.name, o.total_price, o.status])
     resp = make_response(si.getvalue().encode("utf-8-sig"))
     resp.headers["Content-Disposition"] = "attachment; filename=orders.csv"
     resp.headers["Content-type"] = "text/csv"
