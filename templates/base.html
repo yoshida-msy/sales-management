@@ -3,13 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SalesPro - Premium Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <title>SalesPro - Next Gen Sales OS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="fade-in">
+    <!-- Command Palette (Cmd + K) -->
+    <div id="command-palette" class="command-palette">
+        <input type="text" id="cp-input" class="cp-input" placeholder="Search customers, products, or actions... (Esc to close)">
+        <div id="cp-results" style="max-height: 400px; overflow-y: auto; padding: 12px;">
+            <!-- Results will be injected by JS -->
+        </div>
+    </div>
+    <div id="cp-overlay" style="position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1999; display: none;"></div>
+
     <div class="app-container">
         <!-- SaaS Sidebar -->
         <aside class="sidebar">
@@ -20,49 +29,74 @@
             <nav class="sidebar-nav">
                 <ul>
                     <li class="{{ 'active' if request.endpoint == 'index' }}">
-                        <a href="{{ url_for('index') }}"><i class="fa-solid fa-grid-2"></i> ダッシュボード</a>
+                        <a href="{{ url_for('index') }}"><i class="fa-solid fa-chart-pie"></i> ダッシュボード</a>
                     </li>
                     <li class="{{ 'active' if request.endpoint == 'products' }}">
-                        <a href="{{ url_for('products') }}"><i class="fa-solid fa-box"></i> 商品管理</a>
+                        <a href="{{ url_for('products') }}"><i class="fa-solid fa-box-archive"></i> 商品カタログ</a>
                     </li>
-                    <li class="{{ 'active' if request.endpoint == 'customers' }}">
-                        <a href="{{ url_for('customers') }}"><i class="fa-solid fa-user-group"></i> 顧客管理</a>
+                    <li class="{{ 'active' if request.endpoint == 'customers' or request.endpoint == 'customer_detail' }}">
+                        <a href="{{ url_for('customers') }}"><i class="fa-solid fa-address-book"></i> 顧客ポータル</a>
                     </li>
                     <li class="{{ 'active' if request.endpoint == 'orders' }}">
-                        <a href="{{ url_for('orders') }}"><i class="fa-solid fa-receipt"></i> 受注一覧</a>
+                        <a href="{{ url_for('orders') }}"><i class="fa-solid fa-file-invoice"></i> 取引履歴</a>
                     </li>
                     <li class="{{ 'active' if request.endpoint == 'add_order' }}">
-                        <a href="{{ url_for('add_order') }}"><i class="fa-solid fa-plus-circle"></i> 受注登録</a>
+                        <a href="{{ url_for('add_order') }}"><i class="fa-solid fa-square-plus"></i> 受注作成</a>
                     </li>
                 </ul>
             </nav>
-            <div class="sidebar-footer">
-                <button id="theme-toggle" class="theme-toggle-btn">
-                    <i class="fa-solid fa-moon"></i> <span>ダークモード</span>
-                </button>
-                <div class="user-info" style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 0 8px;">
-                    <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.75rem;">
+            <div class="sidebar-footer" style="padding: 24px; border-top: 1px solid rgba(255,255,255,0.05);">
+                <div class="user-info" style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                    <div class="avatar-sm" style="width: 36px; height: 32px; border-radius: 8px; background: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.8rem; color: white;">
                         {{ current_user.username[0]|upper }}
                     </div>
-                    <div>
-                        <p style="font-size: 0.8125rem; font-weight: 600;">{{ current_user.username }}</p>
-                        <p style="font-size: 0.6875rem; color: #94a3b8;">{{ current_user.role|upper }}</p>
+                    <div style="overflow: hidden;">
+                        <p style="font-size: 0.85rem; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; color: white;">{{ current_user.username }}</p>
+                        <p style="font-size: 0.7rem; color: #94a3b8; text-transform: uppercase;">{{ current_user.role }}</p>
                     </div>
                 </div>
-                <a href="{{ url_for('logout') }}" class="btn-logout" style="text-decoration: none; color: #94a3b8; font-size: 0.8125rem; display: flex; align-items: center; gap: 8px; padding: 8px;">
-                    <i class="fa-solid fa-arrow-right-from-bracket"></i> ログアウト
-                </a>
+                <button id="theme-toggle" class="theme-toggle-btn" style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1);">
+                    <i class="fa-solid fa-moon"></i> <span>ダークモード</span>
+                </button>
             </div>
         </aside>
 
         <div class="main-wrapper">
             <header class="top-bar">
                 <div class="page-title">
-                    <h1 style="font-size: 1.125rem; font-weight: 700; letter-spacing: -0.01em;">{% block title %}{% endblock %}</h1>
+                    <h1 style="font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text-main);">
+                        {% block title %}{% endblock %}
+                    </h1>
                 </div>
-                <div class="top-actions">
-                    <a href="{{ url_for('export_csv') }}" class="btn-secondary small" style="background: transparent; border: 1px solid var(--border); padding: 8px 14px; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; text-decoration: none; color: var(--text-main); display: inline-flex; align-items: center; gap: 6px;">
-                        <i class="fa-solid fa-download"></i> エクスポート
+                <div class="nav-actions">
+                    <div style="display: flex; align-items: center; background: var(--border); padding: 4px 12px; border-radius: 8px; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); cursor: pointer;" onclick="toggleCommandPalette()">
+                        <span style="margin-right: 8px;"><i class="fa-solid fa-magnifying-glass"></i> Search...</span>
+                        <kbd style="background: var(--bg-card); padding: 1px 4px; border-radius: 4px; border: 1px solid var(--border); font-family: sans-serif;">⌘ K</kbd>
+                    </div>
+                    
+                    <!-- Notification Center -->
+                    <div style="position: relative;">
+                        <button class="icon-btn" id="notif-btn">
+                            <i class="fa-solid fa-bell"></i>
+                            <span class="notification-dot"></span>
+                        </button>
+                        <div id="notif-dropdown" style="position: absolute; top: 50px; right: 0; width: 320px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); shadow: var(--shadow-lg); display: none; z-index: 1001; padding: 16px;">
+                            <h4 style="font-size: 0.9rem; font-weight: 700; margin-bottom: 12px;">Notifications</h4>
+                            <div style="display: flex; flex-direction: column; gap: 12px;">
+                                <div style="display: flex; gap: 10px; font-size: 0.8rem; padding-bottom: 8px; border-bottom: 1px solid var(--border);">
+                                    <i class="fa-solid fa-triangle-exclamation" style="color: var(--danger);"></i>
+                                    <p><b>在庫アラート:</b> ノートPCの在庫が残りわずかです</p>
+                                </div>
+                                <div style="display: flex; gap: 10px; font-size: 0.8rem;">
+                                    <i class="fa-solid fa-circle-check" style="color: var(--success);"></i>
+                                    <p><b>更新完了:</b> 株式会社サンプルのステータスが更新されました</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <a href="{{ url_for('logout') }}" class="icon-btn" title="Logout">
+                        <i class="fa-solid fa-right-from-bracket"></i>
                     </a>
                 </div>
             </header>
@@ -71,8 +105,8 @@
                 {% with messages = get_flashed_messages() %}
                   {% if messages %}
                     {% for message in messages %}
-                      <div class="flash-message" style="background: var(--primary-glow); color: var(--primary); padding: 12px 20px; border-radius: 8px; margin-bottom: 24px; font-weight: 600; font-size: 0.875rem; border: 1px solid var(--primary);">
-                        {{ message }}
+                      <div class="flash-message" style="background: var(--primary-glow); color: var(--primary); padding: 16px 24px; border-radius: var(--radius); margin-bottom: 32px; font-weight: 700; font-size: 0.9rem; border: 1px solid var(--primary); display: flex; align-items: center; gap: 12px;">
+                        <i class="fa-solid fa-circle-info"></i> {{ message }}
                       </div>
                     {% endfor %}
                   {% endif %}
@@ -85,26 +119,53 @@
 
     <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
     <script>
-        // Theme Toggle Logic
-        const themeToggle = document.getElementById('theme-toggle');
-        const body = document.body;
-        
-        const currentTheme = localStorage.getItem('theme') || 'light';
-        if (currentTheme === 'dark') {
-            document.documentElement.setAttribute('data-theme', 'dark');
-            themeToggle.innerHTML = '<i class="fa-solid fa-sun"></i> <span>ライトモード</span>';
+        // Notification Toggle
+        const notifBtn = document.getElementById('notif-btn');
+        const notifDropdown = document.getElementById('notif-dropdown');
+        notifBtn.addEventListener('click', () => {
+            notifDropdown.style.display = notifDropdown.style.display === 'none' ? 'block' : 'none';
+        });
+
+        // Command Palette Logic
+        const cp = document.getElementById('command-palette');
+        const cpOverlay = document.getElementById('cp-overlay');
+        const cpInput = document.getElementById('cp-input');
+
+        function toggleCommandPalette() {
+            const isVisible = cp.style.display === 'block';
+            cp.style.display = isVisible ? 'none' : 'block';
+            cpOverlay.style.display = isVisible ? 'none' : 'block';
+            if (!isVisible) cpInput.focus();
         }
+
+        window.addEventListener('keydown', (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                toggleCommandPalette();
+            }
+            if (e.key === 'Escape') {
+                cp.style.display = 'none';
+                cpOverlay.style.display = 'none';
+            }
+        });
+        cpOverlay.addEventListener('click', () => {
+            cp.style.display = 'none';
+            cpOverlay.style.display = 'none';
+        });
+
+        // Theme Toggle
+        const themeToggle = document.getElementById('theme-toggle');
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        if (currentTheme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
 
         themeToggle.addEventListener('click', () => {
             let theme = document.documentElement.getAttribute('data-theme');
             if (theme === 'dark') {
                 document.documentElement.removeAttribute('data-theme');
                 localStorage.setItem('theme', 'light');
-                themeToggle.innerHTML = '<i class="fa-solid fa-moon"></i> <span>ダークモード</span>';
             } else {
                 document.documentElement.setAttribute('data-theme', 'dark');
                 localStorage.setItem('theme', 'dark');
-                themeToggle.innerHTML = '<i class="fa-solid fa-sun"></i> <span>ライトモード</span>';
             }
         });
     </script>

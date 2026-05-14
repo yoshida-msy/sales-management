@@ -1,76 +1,102 @@
 {% extends "base.html" %}
 
-{% block title %}<h1>顧客管理</h1>{% endblock %}
+{% block title %}顧客ポータル{% endblock %}
 
 {% block content %}
-<div class="stats-grid" style="grid-template-columns: 1fr 2fr;">
-    <!-- 新規顧客登録 -->
-    <div class="card-section">
-        <div class="section-header"><h2><i class="fa-solid fa-user-plus"></i> 新規顧客登録</h2></div>
-        <div style="padding: 24px;">
-            <form action="{{ url_for('customers') }}" method="POST">
-                <div class="form-group">
-                    <label>会社名</label>
-                    <input type="text" name="company_name" required placeholder="株式会社〇〇">
-                </div>
-                <div class="form-group">
-                    <label>担当者名</label>
-                    <input type="text" name="contact_name" placeholder="山田 太郎">
-                </div>
-                <div class="form-group">
-                    <label>メールアドレス</label>
-                    <input type="email" name="email" placeholder="example@test.com">
-                </div>
-                <div class="form-group">
-                    <label>電話番号</label>
-                    <input type="text" name="phone" placeholder="03-1234-5678">
-                </div>
-                <div class="form-group">
-                    <label>住所</label>
-                    <input type="text" name="address" placeholder="東京都...">
-                </div>
-                <button type="submit" class="btn-primary" style="width: 100%;">登録する</button>
-            </form>
-        </div>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px;">
+    <div class="search-container" style="position: relative; width: 300px;">
+        <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+        <form method="GET" style="margin: 0;">
+            <input type="text" name="q" value="{{ q }}" placeholder="顧客名で検索..." style="padding-left: 40px; width: 100%;">
+        </form>
     </div>
+    <button class="btn-primary" onclick="toggleModal()"><i class="fa-solid fa-user-plus"></i> 新規顧客登録</button>
+</div>
 
-    <!-- 顧客一覧 -->
-    <div class="card-section">
-        <div class="section-header">
-            <h2>顧客データベース</h2>
-            <form method="GET" style="display: flex; gap: 8px;">
-                <input type="text" name="q" value="{{ q }}" placeholder="会社名検索..." style="width: 180px;">
-                <button type="submit" class="btn-secondary small"><i class="fa-solid fa-search"></i></button>
-            </form>
-        </div>
-        <table>
-            <thead>
-                <tr><th>会社名</th><th>担当者</th><th>連絡先</th><th>操作</th></tr>
-            </thead>
-            <tbody>
-                {% for c in customers %}
-                <tr>
-                    <td class="font-bold">{{ c.company_name }}</td>
-                    <td>{{ c.contact_name }}</td>
-                    <td>
-                        <div style="font-size: 0.8rem; color: var(--text-muted);">
-                            <i class="fa-solid fa-envelope"></i> {{ c.email }}<br>
-                            <i class="fa-solid fa-phone"></i> {{ c.phone }}
+{% if not customers %}
+<!-- Empty State -->
+<div class="stat-card empty-state slide-up">
+    <div class="empty-icon"><i class="fa-solid fa-users-slash"></i></div>
+    <h2 style="font-size: 1.5rem; font-weight: 800; margin-bottom: 8px;">顧客データがありません</h2>
+    <p class="text-muted" style="margin-bottom: 32px;">最初の顧客を登録して、営業活動を開始しましょう。</p>
+    <button class="btn-primary" onclick="toggleModal()">顧客を登録する</button>
+</div>
+{% else %}
+<div class="stat-card" style="padding: 0; overflow: hidden;">
+    <table>
+        <thead>
+            <tr>
+                <th>会社名</th>
+                <th>担当者</th>
+                <th>連絡先</th>
+                <th>ステータス</th>
+                <th style="text-align: right;">操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in customers %}
+            <tr style="cursor: pointer;" onclick="window.location='{{ url_for('customer_detail', id=c.id) }}'">
+                <td>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 32px; height: 32px; border-radius: 8px; background: var(--primary-glow); color: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.75rem;">
+                            {{ c.company_name[0] }}
                         </div>
-                    </td>
-                    <td>
+                        <span style="font-weight: 700; color: var(--text-main);">{{ c.company_name }}</span>
+                    </div>
+                </td>
+                <td>{{ c.contact_name }}</td>
+                <td>
+                    <p style="font-size: 0.75rem; color: var(--text-muted);"><i class="fa-solid fa-envelope"></i> {{ c.email }}</p>
+                </td>
+                <td><span class="badge status-完了">アクティブ</span></td>
+                <td style="text-align: right;">
+                    <div style="display: flex; justify-content: flex-end; gap: 8px;" onclick="event.stopPropagation()">
                         {% if current_user.role == 'admin' %}
-                        <form action="{{ url_for('delete_customer', id=c.id) }}" method="POST" onsubmit="return confirm('削除しますか？')">
-                            <button type="submit" class="btn-action delete"><i class="fa-solid fa-trash"></i></button>
+                        <form action="{{ url_for('delete_customer', id=c.id) }}" method="POST" onsubmit="return confirm('本当に削除しますか？')" style="margin: 0;">
+                            <button type="submit" class="icon-btn" style="color: var(--danger); border-color: transparent;"><i class="fa-solid fa-trash-can"></i></button>
                         </form>
-                        {% else %}
-                        <span class="text-muted" style="font-size: 0.7rem;">制限あり</span>
                         {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                        <a href="{{ url_for('customer_detail', id=c.id) }}" class="icon-btn"><i class="fa-solid fa-chevron-right"></i></a>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- Modal for Registration (Simplified for UI demo) -->
+<div id="reg-modal" style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 2001; display: none; align-items: center; justify-content: center;">
+    <div class="stat-card" style="width: 500px; padding: 40px;">
+        <h2 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 24px;">新規顧客の登録</h2>
+        <form action="{{ url_for('customers') }}" method="POST">
+            <div style="display: grid; gap: 20px;">
+                <div>
+                    <label style="display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 8px;">会社名</label>
+                    <input type="text" name="company_name" required placeholder="株式会社〇〇" style="width: 100%;">
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div>
+                        <label style="display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 8px;">担当者名</label>
+                        <input type="text" name="contact_name" placeholder="山田 太郎" style="width: 100%;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 8px;">メール</label>
+                        <input type="email" name="email" placeholder="mail@example.com" style="width: 100%;">
+                    </div>
+                </div>
+                <button type="submit" class="btn-primary" style="justify-content: center; padding: 14px;">登録を完了する</button>
+                <button type="button" class="btn-secondary" onclick="toggleModal()" style="justify-content: center; background: transparent; border: none; color: var(--text-muted); font-size: 0.8rem;">キャンセル</button>
+            </div>
+        </form>
     </div>
 </div>
+
+<script>
+    function toggleModal() {
+        const modal = document.getElementById('reg-modal');
+        modal.style.display = modal.style.display === 'none' || modal.style.display === '' ? 'flex' : 'none';
+    }
+</script>
 {% endblock %}

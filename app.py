@@ -273,6 +273,21 @@ def customers():
     items = Customer.query.filter(Customer.company_name.contains(q)).all()
     return render_template("customers.html", customers=items, q=q)
 
+@app.route("/customers/<int:id>")
+@login_required
+def customer_detail(id):
+    """顧客詳細ページ"""
+    customer = db.session.get(Customer, id)
+    if not customer:
+        flash("顧客が見つかりません")
+        return redirect(url_for("customers"))
+    
+    # 累計売上と受注履歴
+    total_sales = db.session.query(db.func.sum(Order.total_price)).filter(Order.customer_id == id, Order.status != 'キャンセル').scalar() or 0
+    order_history = Order.query.filter_by(customer_id=id).order_by(Order.order_date.desc()).all()
+    
+    return render_template("customer_detail.html", customer=customer, total_sales=total_sales, orders=order_history)
+
 @app.route("/customers/delete/<int:id>", methods=["POST"])
 @login_required
 def delete_customer(id):

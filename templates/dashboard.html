@@ -1,154 +1,175 @@
 {% extends "base.html" %}
 
-{% block title %}ダッシュボード概況{% endblock %}
+{% block title %}ダッシュボード概要{% endblock %}
 
 {% block content %}
-<div class="stats-grid slide-up">
-    <div class="stat-card">
-        <div class="stat-icon sales"><i class="fa-solid fa-chart-line"></i></div>
-        <div class="stat-label">総売上高</div>
-        <div class="stat-value counter" data-target="{{ total_sales|default(0) }}">{{ "{:,}".format(total_sales|default(0)) }}</div>
-        <div style="font-size: 0.75rem; color: var(--success); font-weight: 600;">
-            <i class="fa-solid fa-arrow-up"></i> +12.5% <span style="color: var(--text-muted); font-weight: 400;">先月比</span>
-        </div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon today"><i class="fa-solid fa-calendar-check"></i></div>
-        <div class="stat-label">本日売上</div>
-        <div class="stat-value counter" data-target="{{ today_sales|default(0) }}">{{ "{:,}".format(today_sales|default(0)) }}</div>
-        <div style="font-size: 0.75rem; color: var(--text-muted);">
-            目標まで残り 20,000 円
-        </div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon task"><i class="fa-solid fa-clock-rotate-left"></i></div>
-        <div class="stat-label">未対応案件</div>
-        <div class="stat-value">{{ uninvoiced|default(0) }}</div>
-        <div style="font-size: 0.75rem; color: var(--warning); font-weight: 600;">
-            要確認: 3件
-        </div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon stock"><i class="fa-solid fa-box-open"></i></div>
-        <div class="stat-label">在庫アラート</div>
-        <div class="stat-value {{ 'text-danger' if low_stock|default(0) > 0 }}">{{ low_stock|default(0) }}</div>
-        <div style="font-size: 0.75rem; color: var(--text-muted);">
-            発注推奨: {{ low_stock|default(0) }}件
-        </div>
+<div id="loading-state">
+    <div class="stats-grid">
+        <div class="stat-card skeleton" style="height: 140px;"></div>
+        <div class="stat-card skeleton" style="height: 140px;"></div>
+        <div class="stat-card skeleton" style="height: 140px;"></div>
+        <div class="stat-card skeleton" style="height: 140px;"></div>
     </div>
 </div>
 
-<div class="charts-grid slide-up" style="animation-delay: 0.1s;">
-    <div class="chart-card">
-        <div class="chart-header">
-            <h3>収益推移</h3>
-            <div style="font-size: 0.75rem; color: var(--text-muted);">直近6ヶ月</div>
+<div id="dashboard-content" style="display: none;">
+    <!-- KPI Grid -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon sales"><i class="fa-solid fa-chart-line"></i></div>
+            <p class="stat-label">総売上高</p>
+            <h2 class="stat-value counter" data-target="{{ total_sales|default(0) }}">0</h2>
+            <p style="font-size: 0.75rem; color: var(--success); font-weight: 700; margin-top: 8px;">
+                <i class="fa-solid fa-arrow-up"></i> 12% <span style="color: var(--text-muted); font-weight: 400;">先月比</span>
+            </p>
         </div>
-        <div style="height: 300px;"><canvas id="revenueChart"></canvas></div>
-    </div>
-    <div class="chart-card">
-        <div class="chart-header">
-            <h3>ステータス分布</h3>
+        <div class="stat-card">
+            <div class="stat-icon today"><i class="fa-solid fa-calendar-day"></i></div>
+            <p class="stat-label">本日売上</p>
+            <h2 class="stat-value counter" data-target="{{ today_sales|default(0) }}">0</h2>
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">目標達成率: 85%</p>
         </div>
-        <div style="height: 300px;"><canvas id="statusChart"></canvas></div>
+        <div class="stat-card">
+            <div class="stat-icon task"><i class="fa-solid fa-clock-rotate-left"></i></div>
+            <p class="stat-label">未対応受注</p>
+            <h2 class="stat-value">{{ uninvoiced|default(0) }}</h2>
+            <p style="font-size: 0.75rem; color: var(--warning); font-weight: 700; margin-top: 8px;">要アクション: 3件</p>
+        </div>
+        
+        <!-- AI Analysis Widget -->
+        <div class="ai-widget">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                <span class="ai-badge"><i class="fa-solid fa-wand-sparkles"></i> AI Insight</span>
+            </div>
+            <p style="font-size: 0.85rem; font-weight: 600; line-height: 1.4;">
+                今月の売上ペースは非常に良好です。ノートPCの在庫が少なくなっているため、早期の発注を推奨します。
+            </p>
+            <div style="margin-top: 16px; font-size: 0.7rem; opacity: 0.8;">
+                <i class="fa-solid fa-lightbulb"></i> 人気ランキングに変動があります
+            </div>
+        </div>
     </div>
-</div>
 
-<div class="table-card slide-up" style="animation-delay: 0.2s;">
-    <div class="chart-header" style="padding: 24px 24px 0 24px;">
-        <h3>売上ランキング (TOP 5)</h3>
-        <button class="btn-primary" style="padding: 6px 12px; font-size: 0.75rem;">詳細レポート</button>
+    <!-- Charts -->
+    <div class="charts-row" style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 32px;">
+        <div class="stat-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <h3 style="font-size: 1rem; font-weight: 700;">収益トレンド</h3>
+                <select style="font-size: 0.75rem; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-main);">
+                    <option>直近6ヶ月</option>
+                    <option>直近12ヶ月</option>
+                </select>
+            </div>
+            <div style="height: 300px;"><canvas id="revenueChart"></canvas></div>
+        </div>
+        <div class="stat-card">
+            <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 24px;">ステータス分布</h3>
+            <div style="height: 300px;"><canvas id="statusChart"></canvas></div>
+        </div>
     </div>
-    <table style="margin-top: 16px;">
-        <thead>
-            <tr>
-                <th>商品名</th>
-                <th>販売数量</th>
-                <th>総売上額</th>
-                <th>パフォーマンス</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for item in ranking|default([]) %}
-            <tr>
-                <td style="font-weight: 600;">{{ item.name }}</td>
-                <td>{{ item.qty }}</td>
-                <td style="font-weight: 700;">{{ "{:,}".format(item.total) }} 円</td>
-                <td>
-                    <div style="width: 100px; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
-                        <div style="width: {{ (item.qty / 50 * 100)|round|int }}%; height: 100%; background: var(--primary);"></div>
-                    </div>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+
+    <!-- Ranking Table -->
+    <div class="stat-card" style="padding: 0; overflow: hidden;">
+        <div style="padding: 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="font-size: 1rem; font-weight: 700;">売上ランキング (TOP 5)</h3>
+            <button class="btn-primary" style="padding: 6px 12px; font-size: 0.75rem;">レポート出力</button>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>商品名</th>
+                    <th>販売数量</th>
+                    <th>売上合計</th>
+                    <th>成長率</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in ranking|default([]) %}
+                <tr>
+                    <td style="font-weight: 600; color: var(--text-main);">{{ item.name }}</td>
+                    <td>{{ item.qty }}</td>
+                    <td style="font-weight: 700;">{{ "{:,}".format(item.total) }} 円</td>
+                    <td>
+                        <div style="width: 80px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;">
+                            <div style="width: {{ (item.qty / 50 * 100)|round|int }}%; height: 100%; background: var(--primary);"></div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        const textColor = isDark ? '#94a3b8' : '#64748b';
-        const borderColor = isDark ? '#1e293b' : '#e2e8f0';
+        // Simulate loading
+        setTimeout(() => {
+            document.getElementById('loading-state').style.display = 'none';
+            document.getElementById('dashboard-content').style.display = 'block';
+            initCharts();
+        }, 800);
 
-        // Revenue Chart (Line)
-        new Chart(document.getElementById('revenueChart'), {
-            type: 'line',
-            data: {
-                labels: {{ m_labels|default([])|tojson }},
-                datasets: [{
-                    label: '売上',
-                    data: {{ m_values|default([])|tojson }},
-                    borderColor: '#3b82f6',
-                    borderWidth: 3,
-                    pointBackgroundColor: '#ffffff',
-                    pointBorderColor: '#3b82f6',
-                    pointBorderWidth: 2,
-                    pointRadius: 4,
-                    pointHoverRadius: 6,
-                    tension: 0.4,
-                    fill: true,
-                    backgroundColor: (context) => {
-                        const ctx = context.chart.ctx;
-                        const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-                        gradient.addColorStop(0, 'rgba(59, 130, 246, 0.2)');
-                        gradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
-                        return gradient;
+        function initCharts() {
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const textColor = isDark ? '#94a3b8' : '#64748b';
+            
+            // Revenue Trend
+            new Chart(document.getElementById('revenueChart'), {
+                type: 'line',
+                data: {
+                    labels: {{ m_labels|default([])|tojson }},
+                    datasets: [{
+                        data: {{ m_values|default([])|tojson }},
+                        borderColor: '#2563eb',
+                        borderWidth: 3,
+                        tension: 0.4,
+                        fill: true,
+                        backgroundColor: (context) => {
+                            const ctx = context.chart.ctx;
+                            const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+                            gradient.addColorStop(0, 'rgba(37, 99, 235, 0.1)');
+                            gradient.addColorStop(1, 'rgba(37, 99, 235, 0)');
+                            return gradient;
+                        },
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: '#2563eb',
+                        pointHoverBorderWidth: 3,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: textColor } },
+                        y: { border: { dash: [4, 4] }, grid: { color: isDark ? '#1e293b' : '#e2e8f0' }, ticks: { color: textColor, callback: (v) => v.toLocaleString() + '円' } }
                     }
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { grid: { display: false }, ticks: { color: textColor } },
-                    y: { grid: { color: borderColor }, ticks: { color: textColor, callback: (v) => v.toLocaleString() + '円' } }
                 }
-            }
-        });
+            });
 
-        // Status Chart (Doughnut)
-        new Chart(document.getElementById('statusChart'), {
-            type: 'doughnut',
-            data: {
-                labels: {{ s_labels|default([])|tojson }},
-                datasets: [{
-                    data: {{ s_values|default([])|tojson }},
-                    backgroundColor: ['#f59e0b', '#3b82f6', '#10b981', '#ef4444'],
-                    borderWidth: 0,
-                    hoverOffset: 10
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '75%',
-                plugins: {
-                    legend: { position: 'bottom', labels: { color: textColor, usePointStyle: true, padding: 20 } }
+            // Status Pie
+            new Chart(document.getElementById('statusChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: {{ s_labels|default([])|tojson }},
+                    datasets: [{
+                        data: {{ s_values|default([])|tojson }},
+                        backgroundColor: ['#f59e0b', '#2563eb', '#10b981', '#ef4444'],
+                        borderWidth: 0,
+                        hoverOffset: 12
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '80%',
+                    plugins: { legend: { position: 'bottom', labels: { color: textColor, usePointStyle: true, padding: 20 } } }
                 }
-            }
-        });
+            });
+        }
     });
 </script>
 {% endblock %}

@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}顧客詳細プロファイル{% endblock %}
+
+{% block content %}
+<div class="profile-layout" style="display: grid; grid-template-columns: 350px 1fr; gap: 32px;">
+    <!-- Left Sidebar: Profile Card -->
+    <aside class="slide-up">
+        <div class="stat-card" style="position: sticky; top: 104px;">
+            <div class="avatar-lg" style="margin: 0 auto 24px;">{{ customer.company_name[0] }}</div>
+            <h2 style="text-align: center; font-size: 1.5rem; font-weight: 900; margin-bottom: 8px;">{{ customer.company_name }}</h2>
+            <p style="text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-bottom: 24px;">{{ customer.contact_name or '担当者未登録' }}</p>
+            
+            <div class="tag-group" style="justify-content: center; margin-bottom: 32px;">
+                <span class="tag">VIP顧客</span>
+                <span class="tag">ITセクター</span>
+            </div>
+
+            <div style="display: grid; gap: 16px; border-top: 1px solid var(--border); padding-top: 24px;">
+                <div>
+                    <p class="stat-label" style="font-size: 0.65rem;">Email</p>
+                    <p style="font-size: 0.85rem; font-weight: 600;">{{ customer.email or 'N/A' }}</p>
+                </div>
+                <div>
+                    <p class="stat-label" style="font-size: 0.65rem;">Phone</p>
+                    <p style="font-size: 0.85rem; font-weight: 600;">{{ customer.phone or 'N/A' }}</p>
+                </div>
+                <div>
+                    <p class="stat-label" style="font-size: 0.65rem;">Address</p>
+                    <p style="font-size: 0.85rem; font-weight: 600; line-height: 1.4;">{{ customer.address or 'N/A' }}</p>
+                </div>
+            </div>
+
+            <div style="margin-top: 40px;">
+                <button class="btn-primary" style="width: 100%; justify-content: center;">プロフィール編集</button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Right: Activity & Data -->
+    <div class="slide-up" style="animation-delay: 0.1s;">
+        <!-- Stats Row -->
+        <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr); margin-bottom: 32px;">
+            <div class="stat-card">
+                <p class="stat-label">累計売上高</p>
+                <h2 class="stat-value counter" data-target="{{ total_sales }}">{{ "{:,}".format(total_sales) }}</h2>
+                <p style="font-size: 0.75rem; color: var(--success); font-weight: 700;">+ プレミアム単価適用中</p>
+            </div>
+            <div class="stat-card">
+                <p class="stat-label">最終取引日</p>
+                <h2 style="font-size: 1.25rem; font-weight: 800; margin-top: 8px;">
+                    {% if orders %}
+                        {{ orders[0].order_date.strftime('%Y-%m-%d') }}
+                    {% else %}
+                        取引なし
+                    {% endif %}
+                </h2>
+                <p style="font-size: 0.75rem; color: var(--text-muted);">初回取引から 180 日</p>
+            </div>
+        </div>
+
+        <!-- Purchase History Timeline -->
+        <div class="stat-card">
+            <h3 style="font-size: 1.125rem; font-weight: 800; margin-bottom: 32px;">アクティビティ履歴</h3>
+            <div class="timeline">
+                {% for o in orders %}
+                <div class="timeline-item">
+                    <div class="timeline-dot"></div>
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                        <div>
+                            <p style="font-size: 0.9rem; font-weight: 700;">{{ o.product.name }} の受注 (x{{ o.quantity }})</p>
+                            <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">担当: {{ o.created_by }}</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <p style="font-size: 0.85rem; font-weight: 800;">{{ "{:,}".format(o.total_price) }} 円</p>
+                            <span class="badge status-{{ o.status }}" style="margin-top: 6px; display: inline-block;">{{ o.status }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-muted">取引履歴はまだありません。</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Memo Area -->
+        <div class="stat-card" style="margin-top: 32px;">
+            <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 16px;">商談メモ</h3>
+            <textarea placeholder="顧客に関する重要な情報をメモ..." style="width: 100%; height: 120px; padding: 16px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-main); color: var(--text-main); font-size: 0.9rem; outline: none;"></textarea>
+            <div style="text-align: right; margin-top: 16px;">
+                <button class="btn-primary" style="padding: 8px 16px; font-size: 0.8rem;">メモを保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
