@@ -99,4 +99,25 @@ document.addEventListener('DOMContentLoaded', () => {
             cpResults.innerHTML = '<p style="text-align: center; padding: 24px; color: var(--text-muted); font-size: 0.85rem;">No results found.</p>';
         }
     }
+
+    // 4. Global UI Utilities
+    window.showToast = function(title, msg, isError = false) {
+        const toast = document.getElementById('toast');
+        if (!toast) return;
+
+        const icon = toast.querySelector('i');
+        const titleEl = document.getElementById('toast-title');
+        const msgEl = document.getElementById('toast-msg');
+        
+        if (titleEl) titleEl.innerText = title;
+        if (msgEl) msgEl.innerText = msg;
+        
+        if (icon) {
+            icon.className = isError ? "fa-solid fa-circle-xmark" : "fa-solid fa-circle-check";
+            icon.style.color = isError ? "var(--danger)" : "var(--success)";
+        }
+        
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3000);
+    };
 });

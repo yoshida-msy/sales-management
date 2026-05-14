@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}案件管理ボード{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <!-- Kanban Toolbar -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px;">
+        <div style="display: flex; align-items: center; gap: 24px;">
+            <div style="display: flex; align-items: center; background: var(--bg-card); border: 1px solid var(--border); padding: 8px 16px; border-radius: 12px; gap: 12px;">
+                <i class="fa-solid fa-filter" style="color: var(--text-muted); font-size: 0.8rem;"></i>
+                <span style="font-size: 0.85rem; font-weight: 700;">すべての担当者</span>
+                <i class="fa-solid fa-chevron-down" style="font-size: 0.7rem; color: var(--text-muted);"></i>
+            </div>
+            <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">
+                <i class="fa-solid fa-clock-rotate-left"></i> 最終更新: ちょうど今
+            </div>
+        </div>
+        <a href="{{ url_for('add_order') }}" class="btn-primary">
+            <i class="fa-solid fa-plus"></i> 新規案件を追加
+        </a>
+    </div>
+
+    <!-- Kanban Board Container -->
+    <div class="kanban-container slide-up">
+        {% for status in statuses %}
+        <div class="kanban-column" data-status="{{ status }}">
+            <div class="kanban-column-header">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span class="kanban-dot" style="background: 
+                        {% if status == '新規' %}#6366f1{% elif status == 'ヒアリング' %}#8b5cf6{% elif status == '提案中' %}#3b82f6{% elif status == '契約待ち' %}#f59e0b{% elif status == '成約' %}#10b981{% else %}#ef4444{% endif %}
+                    ;"></span>
+                    <h3 style="font-size: 0.9rem; font-weight: 800; letter-spacing: -0.02em;">{{ status }}</h3>
+                    <span class="kanban-count">{{ stats[status].count }}</span>
+                </div>
+                <div class="kanban-column-total">{{ "{:,}".format(stats[status].total) }} 円</div>
+            </div>
+
+            <div class="kanban-list" ondragover="allowDrop(event)" ondrop="drop(event)">
+                {% for o in board_data[status] %}
+                <div class="kanban-card card" draggable="true" ondragstart="drag(event)" id="order-{{ o.id }}" data-id="{{ o.id }}">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                        <span class="badge" style="background: var(--primary-glow); color: var(--primary); font-size: 0.65rem;">#{{ o.id }}</span>
+                        <div class="avatar-xs" style="width: 24px; height: 24px; border-radius: 6px; background: var(--border); display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 800;">
+                            {{ o.created_by[0]|upper if o.created_by else 'S' }}
+                        </div>
+                    </div>
+                    <h4 style="font-size: 0.9rem; font-weight: 800; margin-bottom: 8px; color: var(--text-main);">{{ o.customer.company_name if o.customer else '個人/未登録' }}</h4>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; margin-bottom: 16px;">{{ o.product.name }} (x{{ o.quantity }})</p>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--border);">
+                        <span style="font-weight: 900; font-size: 0.9rem;">{{ "{:,}".format(o.total_price) }} 円</span>
+                        <span style="font-size: 0.65rem; color: var(--text-muted); font-weight: 700;">
+                            <i class="fa-regular fa-calendar" style="margin-right: 4px;"></i> {{ o.order_date.strftime('%m/%d') }}
+                        </span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+    function drag(ev) {
+        ev.dataTransfer.setData("text", ev.target.id);
+        ev.target.classList.add('dragging');
+    }
+
+    function allowDrop(ev) {
+        ev.preventDefault();
+        const list = ev.target.closest('.kanban-list');
+        if (list) list.classList.add('drag-over');
+    }
+
+    document.querySelectorAll('.kanban-list').forEach(list => {
+        list.addEventListener('dragleave', () => list.classList.remove('drag-over'));
+    });
+
+    function drop(ev) {
+        ev.preventDefault();
+        const data = ev.dataTransfer.getData("text");
+        const card = document.getElementById(data);
+        const list = ev.target.closest('.kanban-list');
+        const column = ev.target.closest('.kanban-column');
+        
+        if (list && card) {
+            list.classList.remove('drag-over');
+            card.classList.remove('dragging');
+            list.appendChild(card);
+            
+            const orderId = card.getAttribute('data-id');
+            const newStatus = column.getAttribute('data-status');
+            
+            updateOrderStatus(orderId, newStatus);
+        }
+    }
+
+    async function updateOrderStatus(id, status) {
+        try {
+            const response = await fetch('/api/update_status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ order_id: id, status: status })
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+                if (window.showToast) window.showToast("更新完了", result.message);
+            } else {
+                if (window.showToast) window.showToast("エラー", result.message, true);
+            }
+        } catch (error) {
+            if (window.showToast) window.showToast("エラー", "通信に失敗しました", true);
+        }
+    }
+</script>
+{% endblock %}

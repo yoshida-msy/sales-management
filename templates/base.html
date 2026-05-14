@@ -33,6 +33,9 @@
                     <li class="{{ 'active' if request.endpoint == 'index' }}">
                         <a href="{{ url_for('index') }}"><i class="fa-solid fa-house-chimney"></i> ダッシュボード</a>
                     </li>
+                    <li class="{{ 'active' if request.endpoint == 'kanban' }}">
+                        <a href="{{ url_for('kanban') }}"><i class="fa-solid fa-table-columns"></i> 案件管理ボード</a>
+                    </li>
                     <li class="{{ 'active' if request.endpoint == 'products' }}">
                         <a href="{{ url_for('products') }}"><i class="fa-solid fa-box-archive"></i> 商品カタログ</a>
                     </li>
@@ -127,6 +130,17 @@
 
                 {% block content %}{% endblock %}
             </main>
+        </div>
+    </div>
+
+    <!-- Global Toast Notification -->
+    <div id="toast" class="toast">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <i class="fa-solid fa-circle-check" style="color: var(--success); font-size: 1.2rem;"></i>
+            <div>
+                <p id="toast-title" style="font-weight: 800; font-size: 0.85rem; margin-bottom: 2px; color: var(--text-main);">Success</p>
+                <p id="toast-msg" style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Action completed successfully.</p>
+            </div>
         </div>
     </div>
 

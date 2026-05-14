@@ -401,6 +401,50 @@ def generate_pdf(id):
     buffer.seek(0)
     return send_file(buffer, as_attachment=True, download_name=f"invoice_{id}.pdf", mimetype='application/pdf')
 
+@app.route("/kanban")
+@login_required
+def kanban():
+    """営業案件Kanbanボード"""
+    statuses = ["新規", "ヒアリング", "提案中", "契約待ち", "成約", "失注"]
+    orders = Order.query.join(Product).outerjoin(Customer).all()
+    
+    # ステータスごとに分類
+    board_data = {status: [] for status in statuses}
+    for o in orders:
+        if o.status in board_data:
+            board_data[o.status].append(o)
+        else:
+            # 既存のステータス（未対応等）を「新規」にマッピング
+            board_data["新規"].append(o)
+            
+    # 各カラムの集計（件数と合計金額）
+    stats = {status: {
+        "count": len(board_data[status]),
+        "total": sum(o.total_price for o in board_data[status])
+    } for status in statuses}
+
+    return render_template("kanban.html", board_data=board_data, statuses=statuses, stats=stats)
+
+@app.route("/api/update_status", methods=["POST"])
+@login_required
+def api_update_status():
+    """非同期でのステータス更新"""
+    try:
+        data = request.get_json()
+        order_id = data.get("order_id")
+        new_status = data.get("status")
+        
+        order = db.session.get(Order, order_id)
+        if order:
+            order.status = new_status
+            order.updated_at = datetime.utcnow()
+            db.session.commit()
+            return {"success": True, "message": "ステータスを更新しました"}
+        return {"success": False, "message": "受注が見つかりません"}, 404
+    except Exception as e:
+        db.session.rollback()
+        return {"success": False, "message": str(e)}, 500
+
 @app.route("/export/csv")
 @login_required
 def export_csv():
