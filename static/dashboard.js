@@ -3,34 +3,35 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Initialize Skeleton Loaders
-    // In a real app, you'd hide this after AJAX, here we simulate it
-    const skeletons = document.querySelectorAll('.skeleton');
-    if (skeletons.length > 0) {
+    // 1. Initialize Skeleton Loaders Simulation
+    const skeletons = document.getElementById('skeleton-loader');
+    const mainContent = document.getElementById('main-content');
+    
+    if (skeletons && mainContent) {
         setTimeout(() => {
-            document.getElementById('loading-state').style.display = 'none';
-            document.getElementById('dashboard-content').style.display = 'block';
-            runAnimations();
-        }, 600);
+            skeletons.style.display = 'none';
+            mainContent.style.display = 'block';
+            runCountUp();
+        }, 800);
     } else {
-        runAnimations();
+        runCountUp();
     }
 
-    function runAnimations() {
-        // 2. Count-up Animation for KPI Cards
+    // 2. Count-up Animation for KPI Values
+    function runCountUp() {
         const counters = document.querySelectorAll('.counter');
-        const speed = 100;
+        const speed = 120;
 
         counters.forEach(counter => {
             const updateCount = () => {
                 const target = +counter.getAttribute('data-target');
                 const currentText = counter.innerText.replace(/,/g, '');
                 const count = +currentText;
-                const inc = Math.max(1, target / speed);
+                const inc = Math.max(1, Math.floor(target / speed));
 
                 if (count < target) {
-                    counter.innerText = Math.ceil(count + inc).toLocaleString();
-                    setTimeout(updateCount, 15);
+                    counter.innerText = (count + inc).toLocaleString();
+                    setTimeout(updateCount, 20);
                 } else {
                     counter.innerText = target.toLocaleString();
                 }
@@ -39,62 +40,63 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 3. Command Palette (Cmd+K) Advanced Logic
+    // 3. Command Palette (Cmd + K) Logic
     const cp = document.getElementById('command-palette');
+    const cpOverlay = document.getElementById('cp-overlay');
     const cpInput = document.getElementById('cp-input');
     const cpResults = document.getElementById('cp-results');
 
-    const actions = [
-        { name: 'ダッシュボードへ移動', url: '/', icon: 'fa-chart-pie' },
-        { name: '新規受注を作成する', url: '/orders/add', icon: 'fa-square-plus' },
-        { name: '商品カタログを見る', url: '/products', icon: 'fa-box-archive' },
-        { name: '顧客リストを開く', url: '/customers', icon: 'fa-address-book' },
-        { name: 'ログアウト', url: '/logout', icon: 'fa-right-from-bracket' }
+    const navigationActions = [
+        { name: 'ダッシュボードを開く', url: '/', icon: 'fa-house-chimney' },
+        { name: '顧客ポータルを表示', url: '/customers', icon: 'fa-address-book' },
+        { name: '商品カタログを閲覧', url: '/products', icon: 'fa-box-archive' },
+        { name: '新規受注を作成', url: '/orders/add', icon: 'fa-square-plus' },
+        { name: '取引履歴を確認', url: '/orders', icon: 'fa-receipt' }
     ];
 
+    window.openCommandPalette = function() {
+        cp.style.display = 'block';
+        cpOverlay.style.display = 'block';
+        cpInput.focus();
+        renderResults('');
+    };
+
+    window.closeCommandPalette = function() {
+        cp.style.display = 'none';
+        cpOverlay.style.display = 'none';
+        cpInput.value = '';
+    };
+
     if (cpInput) {
-        cpInput.addEventListener('input', (e) => {
-            const val = e.target.value.toLowerCase();
-            cpResults.innerHTML = '';
-            
-            const filtered = actions.filter(a => a.name.toLowerCase().includes(val));
-            
-            filtered.forEach(a => {
-                const div = document.createElement('div');
-                div.style.cssText = 'padding: 12px 16px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s;';
-                div.innerHTML = `<i class="fa-solid ${a.icon}" style="color: var(--primary); width: 20px;"></i> <span style="font-size: 0.9rem; font-weight: 600;">${a.name}</span>`;
-                div.addEventListener('mouseenter', () => div.style.background = 'var(--border)');
-                div.addEventListener('mouseleave', () => div.style.background = 'transparent');
-                div.addEventListener('click', () => window.location.href = a.url);
-                cpResults.appendChild(div);
-            });
-
-            if (filtered.length === 0) {
-                cpResults.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-muted); font-size: 0.8rem;">No results found</p>';
+        cpInput.addEventListener('input', (e) => renderResults(e.target.value));
+        
+        window.addEventListener('keydown', (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                openCommandPalette();
             }
+            if (e.key === 'Escape') closeCommandPalette();
         });
+
+        cpOverlay.addEventListener('click', closeCommandPalette);
     }
 
-    // 4. Notification Center Logic
-    const notifBtn = document.getElementById('notif-btn');
-    const notifDropdown = document.getElementById('notif-dropdown');
-    if (notifBtn) {
-        document.addEventListener('click', (e) => {
-            if (!notifBtn.contains(e.target) && !notifDropdown.contains(e.target)) {
-                notifDropdown.style.display = 'none';
-            }
+    function renderResults(query) {
+        cpResults.innerHTML = '';
+        const filtered = navigationActions.filter(a => a.name.includes(query));
+        
+        filtered.forEach(a => {
+            const item = document.createElement('div');
+            item.style.cssText = 'padding: 12px 16px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 14px; transition: 0.2s;';
+            item.innerHTML = `<i class="fa-solid ${a.icon}" style="color: var(--primary); width: 20px;"></i> <span style="font-weight: 600; font-size: 0.95rem;">${a.name}</span>`;
+            item.onmouseover = () => item.style.background = 'rgba(37, 99, 235, 0.08)';
+            item.onmouseout = () => item.style.background = 'transparent';
+            item.onclick = () => window.location.href = a.url;
+            cpResults.appendChild(item);
         });
-    }
 
-    // 5. Sidebar Hover Glow Effect (Optional dynamic injection)
-    const sidebarLinks = document.querySelectorAll('.sidebar-nav a');
-    sidebarLinks.forEach(link => {
-        link.addEventListener('mousemove', (e) => {
-            const rect = link.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            link.style.setProperty('--x', `${x}px`);
-            link.style.setProperty('--y', `${y}px`);
-        });
-    });
+        if (filtered.length === 0) {
+            cpResults.innerHTML = '<p style="text-align: center; padding: 24px; color: var(--text-muted); font-size: 0.85rem;">No results found.</p>';
+        }
+    }
 });

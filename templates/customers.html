@@ -3,91 +3,113 @@
 {% block title %}顧客ポータル{% endblock %}
 
 {% block content %}
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px;">
-    <div class="search-container" style="position: relative; width: 300px;">
-        <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
-        <form method="GET" style="margin: 0;">
-            <input type="text" name="q" value="{{ q }}" placeholder="顧客名で検索..." style="padding-left: 40px; width: 100%;">
-        </form>
+<div class="fade-in">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px;">
+        <div class="search-box" style="position: relative; width: 320px;">
+            <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 0.9rem;"></i>
+            <form method="GET" style="margin: 0;">
+                <input type="text" name="q" value="{{ q }}" placeholder="顧客名で検索..." style="padding-left: 48px; width: 100%; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border); padding-top: 12px; padding-bottom: 12px; font-weight: 600; color: var(--text-main);">
+            </form>
+        </div>
+        <button class="btn-primary" onclick="toggleModal()"><i class="fa-solid fa-plus"></i> 顧客を追加</button>
     </div>
-    <button class="btn-primary" onclick="toggleModal()"><i class="fa-solid fa-user-plus"></i> 新規顧客登録</button>
-</div>
 
-{% if not customers %}
-<!-- Empty State -->
-<div class="stat-card empty-state slide-up">
-    <div class="empty-icon"><i class="fa-solid fa-users-slash"></i></div>
-    <h2 style="font-size: 1.5rem; font-weight: 800; margin-bottom: 8px;">顧客データがありません</h2>
-    <p class="text-muted" style="margin-bottom: 32px;">最初の顧客を登録して、営業活動を開始しましょう。</p>
-    <button class="btn-primary" onclick="toggleModal()">顧客を登録する</button>
-</div>
-{% else %}
-<div class="stat-card" style="padding: 0; overflow: hidden;">
-    <table>
-        <thead>
-            <tr>
-                <th>会社名</th>
-                <th>担当者</th>
-                <th>連絡先</th>
-                <th>ステータス</th>
-                <th style="text-align: right;">操作</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for c in customers %}
-            <tr style="cursor: pointer;" onclick="window.location='{{ url_for('customer_detail', id=c.id) }}'">
-                <td>
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <div style="width: 32px; height: 32px; border-radius: 8px; background: var(--primary-glow); color: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.75rem;">
-                            {{ c.company_name[0] }}
+    {% if not customers %}
+    <!-- Empty State UI -->
+    <div class="card empty-state slide-up" style="background: transparent; border: 2px dashed var(--border); box-shadow: none;">
+        <div class="empty-icon"><i class="fa-solid fa-users-viewfinder"></i></div>
+        <h2 style="font-size: 1.5rem; font-weight: 900; margin-bottom: 12px; letter-spacing: -0.02em;">顧客データがまだありません</h2>
+        <p class="text-muted" style="max-width: 400px; margin: 0 auto 32px; font-weight: 500;">
+            最初の顧客を登録して、取引履歴の管理や売上分析を開始しましょう。
+        </p>
+        <button class="btn-primary" onclick="toggleModal()"><i class="fa-solid fa-user-plus"></i> 最初の顧客を登録する</button>
+    </div>
+    {% else %}
+    <div class="card slide-up" style="padding: 0;">
+        <table>
+            <thead>
+                <tr>
+                    <th>顧客名 / ID</th>
+                    <th>担当者</th>
+                    <th>連絡先</th>
+                    <th>累計取引</th>
+                    <th style="text-align: right;">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in customers %}
+                <tr style="cursor: pointer; transition: 0.2s;" onclick="window.location='{{ url_for('customer_detail', id=c.id) }}'">
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 16px;">
+                            <div style="width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, var(--primary), #4f46e5); color: white; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.85rem; box-shadow: 0 4px 10px var(--primary-glow);">
+                                {{ c.company_name[0]|upper }}
+                            </div>
+                            <div>
+                                <p style="font-weight: 800; color: var(--text-main); font-size: 0.95rem;">{{ c.company_name }}</p>
+                                <p style="font-size: 0.7rem; color: var(--text-muted); font-weight: 700;">#{{ c.id }}</p>
+                            </div>
                         </div>
-                        <span style="font-weight: 700; color: var(--text-main);">{{ c.company_name }}</span>
-                    </div>
-                </td>
-                <td>{{ c.contact_name }}</td>
-                <td>
-                    <p style="font-size: 0.75rem; color: var(--text-muted);"><i class="fa-solid fa-envelope"></i> {{ c.email }}</p>
-                </td>
-                <td><span class="badge status-完了">アクティブ</span></td>
-                <td style="text-align: right;">
-                    <div style="display: flex; justify-content: flex-end; gap: 8px;" onclick="event.stopPropagation()">
-                        {% if current_user.role == 'admin' %}
-                        <form action="{{ url_for('delete_customer', id=c.id) }}" method="POST" onsubmit="return confirm('本当に削除しますか？')" style="margin: 0;">
-                            <button type="submit" class="icon-btn" style="color: var(--danger); border-color: transparent;"><i class="fa-solid fa-trash-can"></i></button>
-                        </form>
-                        {% endif %}
-                        <a href="{{ url_for('customer_detail', id=c.id) }}" class="icon-btn"><i class="fa-solid fa-chevron-right"></i></a>
-                    </div>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+                    </td>
+                    <td>
+                        <p style="font-weight: 700; color: var(--text-main);">{{ c.contact_name or '-' }}</p>
+                    </td>
+                    <td>
+                        <div style="display: grid; gap: 4px;">
+                            <p style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;"><i class="fa-solid fa-envelope" style="width: 16px;"></i> {{ c.email or 'N/A' }}</p>
+                            <p style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;"><i class="fa-solid fa-phone" style="width: 16px;"></i> {{ c.phone or 'N/A' }}</p>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge status-完了">アクティブ</span>
+                    </td>
+                    <td style="text-align: right;">
+                        <div style="display: flex; justify-content: flex-end; gap: 10px;" onclick="event.stopPropagation()">
+                            {% if current_user.role == 'admin' %}
+                            <form action="{{ url_for('delete_customer', id=c.id) }}" method="POST" onsubmit="return confirm('本当にこの顧客を削除しますか？関連データも削除される可能性があります。')" style="margin: 0;">
+                                <button type="submit" class="icon-btn" style="color: var(--danger);"><i class="fa-solid fa-trash-can"></i></button>
+                            </form>
+                            {% endif %}
+                            <a href="{{ url_for('customer_detail', id=c.id) }}" class="icon-btn"><i class="fa-solid fa-arrow-right"></i></a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
 </div>
-{% endif %}
 
-<!-- Modal for Registration (Simplified for UI demo) -->
-<div id="reg-modal" style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 2001; display: none; align-items: center; justify-content: center;">
-    <div class="stat-card" style="width: 500px; padding: 40px;">
-        <h2 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 24px;">新規顧客の登録</h2>
+<!-- Add Customer Modal -->
+<div id="reg-modal" style="position: fixed; inset: 0; background: rgba(9, 9, 11, 0.6); backdrop-filter: blur(8px); z-index: 2001; display: none; align-items: center; justify-content: center;">
+    <div class="card slide-up" style="width: 520px; padding: 40px; border-radius: var(--radius-lg);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px;">
+            <h2 style="font-size: 1.4rem; font-weight: 900; letter-spacing: -0.02em;">新規顧客プロファイルの作成</h2>
+            <button onclick="toggleModal()" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-muted);"><i class="fa-solid fa-xmark"></i></button>
+        </div>
         <form action="{{ url_for('customers') }}" method="POST">
-            <div style="display: grid; gap: 20px;">
-                <div>
-                    <label style="display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 8px;">会社名</label>
-                    <input type="text" name="company_name" required placeholder="株式会社〇〇" style="width: 100%;">
+            <div style="display: grid; gap: 24px;">
+                <div class="form-group">
+                    <label style="display: block; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; color: var(--text-muted);">会社名 (必須)</label>
+                    <input type="text" name="company_name" required placeholder="例: 株式会社SalesPro" style="width: 100%; padding: 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-main); color: var(--text-main); font-weight: 600;">
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                    <div>
-                        <label style="display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 8px;">担当者名</label>
-                        <input type="text" name="contact_name" placeholder="山田 太郎" style="width: 100%;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div class="form-group">
+                        <label style="display: block; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; margin-bottom: 10px; color: var(--text-muted);">担当者名</label>
+                        <input type="text" name="contact_name" placeholder="山田 太郎" style="width: 100%; padding: 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-main); color: var(--text-main); font-weight: 600;">
                     </div>
-                    <div>
-                        <label style="display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 8px;">メール</label>
-                        <input type="email" name="email" placeholder="mail@example.com" style="width: 100%;">
+                    <div class="form-group">
+                        <label style="display: block; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; margin-bottom: 10px; color: var(--text-muted);">メールアドレス</label>
+                        <input type="email" name="email" placeholder="client@example.com" style="width: 100%; padding: 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-main); color: var(--text-main); font-weight: 600;">
                     </div>
                 </div>
-                <button type="submit" class="btn-primary" style="justify-content: center; padding: 14px;">登録を完了する</button>
-                <button type="button" class="btn-secondary" onclick="toggleModal()" style="justify-content: center; background: transparent; border: none; color: var(--text-muted); font-size: 0.8rem;">キャンセル</button>
+                <div class="form-group">
+                    <label style="display: block; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; margin-bottom: 10px; color: var(--text-muted);">住所</label>
+                    <input type="text" name="address" placeholder="東京都渋谷区..." style="width: 100%; padding: 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-main); color: var(--text-main); font-weight: 600;">
+                </div>
+                <div style="margin-top: 12px;">
+                    <button type="submit" class="btn-primary" style="width: 100%; justify-content: center; padding: 16px; font-size: 1rem;">顧客情報を保存する</button>
+                </div>
             </div>
         </form>
     </div>
@@ -96,7 +118,8 @@
 <script>
     function toggleModal() {
         const modal = document.getElementById('reg-modal');
-        modal.style.display = modal.style.display === 'none' || modal.style.display === '' ? 'flex' : 'none';
+        const isVisible = modal.style.display === 'flex';
+        modal.style.display = isVisible ? 'none' : 'flex';
     }
 </script>
 {% endblock %}

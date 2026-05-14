@@ -3,76 +3,101 @@
 {% block title %}ダッシュボード概要{% endblock %}
 
 {% block content %}
-<div id="loading-state">
-    <div class="stats-grid">
-        <div class="stat-card skeleton" style="height: 140px;"></div>
-        <div class="stat-card skeleton" style="height: 140px;"></div>
-        <div class="stat-card skeleton" style="height: 140px;"></div>
-        <div class="stat-card skeleton" style="height: 140px;"></div>
-    </div>
+<!-- Skeleton Loaders (Hidden by JS after load) -->
+<div id="skeleton-loader" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; margin-bottom: 40px;">
+    <div class="card skeleton" style="height: 160px; border: none;"></div>
+    <div class="card skeleton" style="height: 160px; border: none;"></div>
+    <div class="card skeleton" style="height: 160px; border: none;"></div>
+    <div class="card skeleton" style="height: 160px; border: none;"></div>
 </div>
 
-<div id="dashboard-content" style="display: none;">
-    <!-- KPI Grid -->
-    <div class="stats-grid">
-        <div class="stat-card">
-            <div class="stat-icon sales"><i class="fa-solid fa-chart-line"></i></div>
-            <p class="stat-label">総売上高</p>
-            <h2 class="stat-value counter" data-target="{{ total_sales|default(0) }}">0</h2>
-            <p style="font-size: 0.75rem; color: var(--success); font-weight: 700; margin-top: 8px;">
-                <i class="fa-solid fa-arrow-up"></i> 12% <span style="color: var(--text-muted); font-weight: 400;">先月比</span>
-            </p>
+<div id="main-content" style="display: none;" class="fade-in">
+    <!-- AI Insights Panel -->
+    <div class="ai-insights slide-up" style="margin-bottom: 40px;">
+        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 20px;">
+            <div class="ai-badge"><i class="fa-solid fa-wand-sparkles"></i> AI Insights</div>
+            <span style="font-size: 0.7rem; opacity: 0.7; font-weight: 700;">UPDATE: JUST NOW</span>
         </div>
-        <div class="stat-card">
-            <div class="stat-icon today"><i class="fa-solid fa-calendar-day"></i></div>
-            <p class="stat-label">本日売上</p>
-            <h2 class="stat-value counter" data-target="{{ today_sales|default(0) }}">0</h2>
-            <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">目標達成率: 85%</p>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon task"><i class="fa-solid fa-clock-rotate-left"></i></div>
-            <p class="stat-label">未対応受注</p>
-            <h2 class="stat-value">{{ uninvoiced|default(0) }}</h2>
-            <p style="font-size: 0.75rem; color: var(--warning); font-weight: 700; margin-top: 8px;">要アクション: 3件</p>
-        </div>
-        
-        <!-- AI Analysis Widget -->
-        <div class="ai-widget">
-            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
-                <span class="ai-badge"><i class="fa-solid fa-wand-sparkles"></i> AI Insight</span>
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 40px; align-items: center;">
+            <div>
+                <h2 style="font-size: 1.5rem; font-weight: 900; margin-bottom: 12px; letter-spacing: -0.02em;">今月の売上は予測を 15% 上回っています。</h2>
+                <p style="font-size: 0.95rem; opacity: 0.9; font-weight: 500; line-height: 1.6;">
+                    特に「MacBook Pro 14」の需要が急増しています。未請求案件が 3 件蓄積されているため、早期の処理を推奨します。
+                </p>
             </div>
-            <p style="font-size: 0.85rem; font-weight: 600; line-height: 1.4;">
-                今月の売上ペースは非常に良好です。ノートPCの在庫が少なくなっているため、早期の発注を推奨します。
-            </p>
-            <div style="margin-top: 16px; font-size: 0.7rem; opacity: 0.8;">
-                <i class="fa-solid fa-lightbulb"></i> 人気ランキングに変動があります
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="background: rgba(255,255,255,0.1); padding: 12px 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+                    <p style="font-size: 0.7rem; font-weight: 800; opacity: 0.8;">PREDICTED GROWTH</p>
+                    <p style="font-size: 1.2rem; font-weight: 900;">+24.8%</p>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Charts -->
-    <div class="charts-row" style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 32px;">
-        <div class="stat-card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-                <h3 style="font-size: 1rem; font-weight: 700;">収益トレンド</h3>
-                <select style="font-size: 0.75rem; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-main);">
-                    <option>直近6ヶ月</option>
-                    <option>直近12ヶ月</option>
-                </select>
+    <!-- KPI Grid -->
+    <div class="stats-grid slide-up" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; margin-bottom: 40px;">
+        <div class="card stat-card">
+            <div class="stat-icon" style="background: #eff6ff; color: #2563eb;"><i class="fa-solid fa-coins"></i></div>
+            <p class="stat-label">総売上高</p>
+            <h2 class="stat-value counter" data-target="{{ total_sales|default(0) }}">0</h2>
+            <div style="font-size: 0.75rem; color: var(--success); font-weight: 800; margin-top: 12px; display: flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-arrow-up"></i> 12.5% <span style="color: var(--text-muted); font-weight: 600;">先月比</span>
             </div>
-            <div style="height: 300px;"><canvas id="revenueChart"></canvas></div>
         </div>
-        <div class="stat-card">
-            <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 24px;">ステータス分布</h3>
-            <div style="height: 300px;"><canvas id="statusChart"></canvas></div>
+        <div class="card stat-card">
+            <div class="stat-icon" style="background: #ecfdf5; color: #10b981;"><i class="fa-solid fa-calendar-check"></i></div>
+            <p class="stat-label">本日売上</p>
+            <h2 class="stat-value counter" data-target="{{ today_sales|default(0) }}">0</h2>
+            <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; margin-top: 12px;">
+                目標達成まで残り 45,000 円
+            </div>
+        </div>
+        <div class="card stat-card">
+            <div class="stat-icon" style="background: #fffbeb; color: #f59e0b;"><i class="fa-solid fa-clock-rotate-left"></i></div>
+            <p class="stat-label">未対応案件</p>
+            <h2 class="stat-value">{{ uninvoiced|default(0) }}</h2>
+            <div style="font-size: 0.75rem; color: var(--warning); font-weight: 800; margin-top: 12px; display: flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-circle-exclamation"></i> 優先対応が必要
+            </div>
+        </div>
+        <div class="card stat-card">
+            <div class="stat-icon" style="background: #fef2f2; color: #ef4444;"><i class="fa-solid fa-box-open"></i></div>
+            <p class="stat-label">在庫アラート</p>
+            <h2 class="stat-value {{ 'text-danger' if low_stock|default(0) > 0 }}">{{ low_stock|default(0) }}</h2>
+            <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; margin-top: 12px;">
+                発注推奨品目あり
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 40px;">
+        <div class="card" style="padding: 32px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px;">
+                <h3 style="font-size: 1rem; font-weight: 800;">収益推移</h3>
+                <div class="ai-badge" style="color: var(--text-muted); background: var(--border);"><i class="fa-solid fa-chart-area"></i> Linear View</div>
+            </div>
+            <div style="height: 320px;"><canvas id="revenueChart"></canvas></div>
+        </div>
+        <div class="card" style="padding: 32px;">
+            <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 32px;">受注ステータス</h3>
+            <div style="height: 240px;"><canvas id="statusChart"></canvas></div>
+            <div style="margin-top: 24px; display: grid; gap: 12px;">
+                {% for label in s_labels|default([]) %}
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem;">
+                    <span style="font-weight: 700; color: var(--text-muted);">{{ label }}</span>
+                    <span style="font-weight: 900;">{{ s_values[loop.index0] }} 件</span>
+                </div>
+                {% endfor %}
+            </div>
         </div>
     </div>
 
     <!-- Ranking Table -->
-    <div class="stat-card" style="padding: 0; overflow: hidden;">
-        <div style="padding: 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-            <h3 style="font-size: 1rem; font-weight: 700;">売上ランキング (TOP 5)</h3>
-            <button class="btn-primary" style="padding: 6px 12px; font-size: 0.75rem;">レポート出力</button>
+    <div class="card" style="padding: 0;">
+        <div style="padding: 24px 32px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="font-size: 1rem; font-weight: 800;">商品別売上ランキング (TOP 5)</h3>
+            <button class="btn-primary" style="padding: 8px 16px; font-size: 0.75rem;">フルレポートを表示</button>
         </div>
         <table>
             <thead>
@@ -80,18 +105,21 @@
                     <th>商品名</th>
                     <th>販売数量</th>
                     <th>売上合計</th>
-                    <th>成長率</th>
+                    <th style="text-align: right;">パフォーマンス</th>
                 </tr>
             </thead>
             <tbody>
                 {% for item in ranking|default([]) %}
                 <tr>
-                    <td style="font-weight: 600; color: var(--text-main);">{{ item.name }}</td>
-                    <td>{{ item.qty }}</td>
-                    <td style="font-weight: 700;">{{ "{:,}".format(item.total) }} 円</td>
-                    <td>
-                        <div style="width: 80px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;">
-                            <div style="width: {{ (item.qty / 50 * 100)|round|int }}%; height: 100%; background: var(--primary);"></div>
+                    <td style="font-weight: 700; color: var(--text-main);">{{ item.name }}</td>
+                    <td style="font-weight: 600;">{{ item.qty }}</td>
+                    <td style="font-weight: 800;">{{ "{:,}".format(item.total) }} 円</td>
+                    <td style="text-align: right;">
+                        <div style="display: inline-flex; align-items: center; gap: 12px;">
+                            <div style="width: 120px; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;">
+                                <div style="width: {{ (item.qty / 50 * 100)|round|int }}%; height: 100%; background: var(--primary); box-shadow: 0 0 10px var(--primary-glow);"></div>
+                            </div>
+                            <span style="font-size: 0.75rem; font-weight: 800; color: var(--primary);">{{ (item.qty / 50 * 100)|round|int }}%</span>
                         </div>
                     </td>
                 </tr>
@@ -103,18 +131,19 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        // Simulate loading
+        // Show content after a short delay to simulate SaaS loading
         setTimeout(() => {
-            document.getElementById('loading-state').style.display = 'none';
-            document.getElementById('dashboard-content').style.display = 'block';
+            document.getElementById('skeleton-loader').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
             initCharts();
-        }, 800);
+        }, 600);
 
         function initCharts() {
             const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-            const textColor = isDark ? '#94a3b8' : '#64748b';
-            
-            // Revenue Trend
+            const textColor = isDark ? '#a1a1aa' : '#71717a';
+            const gridColor = isDark ? '#27272a' : '#f4f4f5';
+
+            // Revenue Chart
             new Chart(document.getElementById('revenueChart'), {
                 type: 'line',
                 data: {
@@ -122,21 +151,21 @@
                     datasets: [{
                         data: {{ m_values|default([])|tojson }},
                         borderColor: '#2563eb',
-                        borderWidth: 3,
-                        tension: 0.4,
-                        fill: true,
-                        backgroundColor: (context) => {
-                            const ctx = context.chart.ctx;
-                            const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-                            gradient.addColorStop(0, 'rgba(37, 99, 235, 0.1)');
-                            gradient.addColorStop(1, 'rgba(37, 99, 235, 0)');
-                            return gradient;
-                        },
+                        borderWidth: 4,
                         pointRadius: 0,
                         pointHoverRadius: 6,
                         pointHoverBackgroundColor: '#fff',
                         pointHoverBorderColor: '#2563eb',
                         pointHoverBorderWidth: 3,
+                        tension: 0.4,
+                        fill: true,
+                        backgroundColor: (context) => {
+                            const ctx = context.chart.ctx;
+                            const gradient = ctx.createLinearGradient(0, 0, 0, 320);
+                            gradient.addColorStop(0, 'rgba(37, 99, 235, 0.15)');
+                            gradient.addColorStop(1, 'rgba(37, 99, 235, 0)');
+                            return gradient;
+                        }
                     }]
                 },
                 options: {
@@ -144,13 +173,14 @@
                     maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
-                        x: { grid: { display: false }, ticks: { color: textColor } },
-                        y: { border: { dash: [4, 4] }, grid: { color: isDark ? '#1e293b' : '#e2e8f0' }, ticks: { color: textColor, callback: (v) => v.toLocaleString() + '円' } }
-                    }
+                        x: { grid: { display: false }, ticks: { color: textColor, font: { weight: 600 } } },
+                        y: { grid: { color: gridColor }, ticks: { color: textColor, font: { weight: 600 }, callback: (v) => v.toLocaleString() + '円' } }
+                    },
+                    interaction: { intersect: false, mode: 'index' }
                 }
             });
 
-            // Status Pie
+            // Status Chart
             new Chart(document.getElementById('statusChart'), {
                 type: 'doughnut',
                 data: {
@@ -159,14 +189,14 @@
                         data: {{ s_values|default([])|tojson }},
                         backgroundColor: ['#f59e0b', '#2563eb', '#10b981', '#ef4444'],
                         borderWidth: 0,
-                        hoverOffset: 12
+                        hoverOffset: 15
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    cutout: '80%',
-                    plugins: { legend: { position: 'bottom', labels: { color: textColor, usePointStyle: true, padding: 20 } } }
+                    cutout: '82%',
+                    plugins: { legend: { display: false } }
                 }
             });
         }
