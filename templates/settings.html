@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}ユーザー設定{% endblock %}
+
+{% block content %}
+<div class="fade-in" style="max-width: 800px; margin: 0 auto;">
+    <div class="profile-layout" style="display: grid; grid-template-columns: 280px 1fr; gap: 32px; align-items: start;">
+        
+        <!-- Left: Avatar Preview -->
+        <aside class="slide-up">
+            <div class="card stat-card" style="text-align: center; padding: 40px 24px;">
+                <div class="avatar-xl" style="margin: 0 auto 24px; position: relative;">
+                    <img id="avatar-preview" src="{{ current_user.avatar_url or 'https://ui-avatars.com/api/?name=' + current_user.username }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 24px; border: 4px solid var(--primary-glow);">
+                </div>
+                <h2 style="font-size: 1.25rem; font-weight: 900; letter-spacing: -0.02em; margin-bottom: 4px;">{{ current_user.display_name or current_user.username }}</h2>
+                <p style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; text-transform: uppercase;">{{ current_user.role }}</p>
+                
+                <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border); text-align: left;">
+                    <p style="font-size: 0.7rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px;">Joined On</p>
+                    <p style="font-size: 0.85rem; font-weight: 600;">{{ current_user.created_at.strftime('%Y-%m-%d') if current_user.created_at else 'N/A' }}</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Right: Settings Form -->
+        <div class="slide-up" style="animation-delay: 0.1s;">
+            <div class="card" style="padding: 40px;">
+                <h3 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 32px; letter-spacing: -0.02em;">アカウント設定</h3>
+                
+                <form action="{{ url_for('settings') }}" method="POST">
+                    <div style="display: grid; gap: 28px;">
+                        <div class="form-group">
+                            <label class="auth-label" style="color: var(--text-muted);">表示名</label>
+                            <input type="text" name="display_name" value="{{ current_user.display_name or '' }}" placeholder="山田 太郎" class="auth-input" style="background: var(--bg-main); color: var(--text-main); padding-left: 16px;">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="auth-label" style="color: var(--text-muted);">メールアドレス</label>
+                            <input type="email" name="email" value="{{ current_user.email or '' }}" placeholder="mail@example.com" class="auth-input" style="background: var(--bg-main); color: var(--text-main); padding-left: 16px;">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="auth-label" style="color: var(--text-muted);">アバターURL</label>
+                            <input type="text" id="avatar-url-input" name="avatar_url" value="{{ current_user.avatar_url or '' }}" placeholder="https://example.com/avatar.jpg" class="auth-input" style="background: var(--bg-main); color: var(--text-main); padding-left: 16px;">
+                            <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 8px;">画像URLを入力するとプレビューに反映されます。</p>
+                        </div>
+
+                        <div style="margin-top: 12px; padding-top: 32px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 16px;">
+                            <button type="submit" class="btn-primary" style="padding: 12px 32px;">変更を保存</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Security Section -->
+            <div class="card" style="margin-top: 32px; padding: 32px; border-color: rgba(239, 68, 68, 0.2); background: rgba(239, 68, 68, 0.02);">
+                <h3 style="font-size: 1rem; font-weight: 800; color: var(--danger); margin-bottom: 16px;">危険な操作</h3>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 24px;">アカウントの削除やパスワードの強制リセットが必要な場合は管理者に連絡してください。</p>
+                <button class="icon-btn" style="width: auto; padding: 0 20px; color: var(--danger); border-color: var(--danger); font-weight: 700; font-size: 0.8rem;">
+                    パスワード変更リクエスト
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const avatarInput = document.getElementById('avatar-url-input');
+    const avatarPreview = document.getElementById('avatar-preview');
+    
+    if (avatarInput && avatarPreview) {
+        avatarInput.addEventListener('input', (e) => {
+            const val = e.target.value.trim();
+            if (val) {
+                avatarPreview.src = val;
+            } else {
+                avatarPreview.src = "https://ui-avatars.com/api/?name={{ current_user.username }}";
+            }
+        });
+    }
+</script>
+{% endblock %}

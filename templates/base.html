@@ -15,9 +15,7 @@
     <!-- Command Palette (Cmd + K) -->
     <div id="command-palette" class="command-palette">
         <input type="text" id="cp-input" class="cp-input" placeholder="Search anything... (Esc to close)">
-        <div id="cp-results" style="max-height: 400px; overflow-y: auto; padding: 12px;">
-            <!-- Dynamic Results -->
-        </div>
+        <div id="cp-results" style="max-height: 400px; overflow-y: auto; padding: 12px;"></div>
     </div>
     <div id="cp-overlay" style="position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1999; display: none;"></div>
 
@@ -50,14 +48,31 @@
                     </li>
                 </ul>
             </nav>
+            
             <div class="sidebar-footer">
-                <div class="user-profile-area">
+                <div class="user-profile-area" id="profile-trigger" style="position: relative; cursor: pointer;">
                     <div class="avatar-box">
-                        {{ current_user.username[0]|upper }}
+                        {% if current_user.avatar_url %}
+                            <img src="{{ current_user.avatar_url }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: inherit;">
+                        {% else %}
+                            {{ current_user.username[0]|upper }}
+                        {% endif %}
                     </div>
                     <div class="user-meta">
-                        <p class="user-name">{{ current_user.username }}</p>
+                        <p class="user-name">{{ current_user.display_name or current_user.username }}</p>
                         <p class="user-role">{{ current_user.role|upper }}</p>
+                    </div>
+                    <i class="fa-solid fa-chevron-up" style="margin-left: auto; font-size: 0.7rem; color: var(--text-muted);"></i>
+                    
+                    <!-- Profile Dropdown -->
+                    <div id="profile-dropdown" class="card" style="position: absolute; bottom: 60px; left: 0; width: 220px; display: none; z-index: 1200; padding: 12px; box-shadow: var(--shadow-lg);">
+                        <a href="{{ url_for('settings') }}" class="dropdown-item">
+                            <i class="fa-solid fa-gear"></i> <span>Settings</span>
+                        </a>
+                        <div style="height: 1px; background: var(--border); margin: 8px 0;"></div>
+                        <a href="{{ url_for('logout') }}" class="dropdown-item" style="color: var(--danger);">
+                            <i class="fa-solid fa-right-from-bracket"></i> <span>Logout</span>
+                        </a>
                     </div>
                 </div>
 
@@ -65,9 +80,6 @@
                     <button id="theme-toggle" class="theme-toggle-btn" title="Toggle Theme">
                         <i class="fa-solid fa-moon"></i> <span>ダークモード</span>
                     </button>
-                    <a href="{{ url_for('logout') }}" class="btn-logout-premium">
-                        <i class="fa-solid fa-arrow-right-from-bracket"></i> <span>ログアウト</span>
-                    </a>
                 </div>
             </div>
         </aside>
@@ -152,27 +164,45 @@
         // Notification Toggle
         const notifBtn = document.getElementById('notif-btn');
         const notifDropdown = document.getElementById('notif-dropdown');
-        notifBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            notifDropdown.style.display = notifDropdown.style.display === 'none' ? 'block' : 'none';
+        if (notifBtn) {
+            notifBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                notifDropdown.style.display = notifDropdown.style.display === 'none' ? 'block' : 'none';
+            });
+        }
+
+        // Profile Dropdown Toggle
+        const profileTrigger = document.getElementById('profile-trigger');
+        const profileDropdown = document.getElementById('profile-dropdown');
+        if (profileTrigger) {
+            profileTrigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                profileDropdown.style.display = profileDropdown.style.display === 'none' ? 'block' : 'none';
+            });
+        }
+
+        document.addEventListener('click', () => { 
+            if (notifDropdown) notifDropdown.style.display = 'none';
+            if (profileDropdown) profileDropdown.style.display = 'none';
         });
-        document.addEventListener('click', () => { notifDropdown.style.display = 'none'; });
 
         // Theme Toggle
         const themeToggle = document.getElementById('theme-toggle');
         const currentTheme = localStorage.getItem('theme') || 'light';
         if (currentTheme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
 
-        themeToggle.addEventListener('click', () => {
-            let theme = document.documentElement.getAttribute('data-theme');
-            if (theme === 'dark') {
-                document.documentElement.removeAttribute('data-theme');
-                localStorage.setItem('theme', 'light');
-            } else {
-                document.documentElement.setAttribute('data-theme', 'dark');
-                localStorage.setItem('theme', 'dark');
-            }
-        });
+        if (themeToggle) {
+            themeToggle.addEventListener('click', () => {
+                let theme = document.documentElement.getAttribute('data-theme');
+                if (theme === 'dark') {
+                    document.documentElement.removeAttribute('data-theme');
+                    localStorage.setItem('theme', 'light');
+                } else {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    localStorage.setItem('theme', 'dark');
+                }
+            });
+        }
     </script>
 </body>
 </html>

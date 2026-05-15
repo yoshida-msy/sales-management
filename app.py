@@ -51,6 +51,10 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     role = db.Column(db.String(20), default='staff')
+    email = db.Column(db.String(120), unique=True)
+    display_name = db.Column(db.String(100))
+    avatar_url = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Product(db.Model):
     __tablename__ = 'products'
@@ -96,10 +100,22 @@ def load_user(user_id):
 def seed_db():
     try:
         if not User.query.filter_by(username='admin').first():
-            admin = User(username='admin', password=generate_password_hash('password'), role='admin')
+            admin = User(
+                username='admin', 
+                password=generate_password_hash('password'), 
+                role='admin',
+                email='admin@example.com',
+                display_name='System Admin'
+            )
             db.session.add(admin)
         if not User.query.filter_by(username='staff').first():
-            staff = User(username='staff', password=generate_password_hash('password'), role='staff')
+            staff = User(
+                username='staff', 
+                password=generate_password_hash('password'), 
+                role='staff',
+                email='staff@example.com',
+                display_name='Regular Staff'
+            )
             db.session.add(staff)
         if Product.query.count() == 0:
             sample_prods = [
@@ -179,11 +195,33 @@ def register():
 def forgot_password():
     """パスワード再設定 (簡易版)"""
     if request.method == "POST":
-        username = request.form.get("username")
+        identifier = request.form.get("identifier")
+        # ユーザー名またはメールアドレスで検索
+        user = User.query.filter((User.username == identifier) | (User.email == identifier)).first()
+        
         # 実運用ではここでメール送信等を行いますが、今回はメッセージのみ
-        flash("パスワードのリセット手順を送信しました。管理者へお問い合わせください。")
+        flash(f"登録メールアドレスへリセット手順を送信しました（デモ）。")
         return redirect(url_for("login"))
     return render_template("forgot_password.html")
+
+@app.route("/settings", methods=["GET", "POST"])
+@login_required
+def settings():
+    """ユーザー設定ページ"""
+    if request.method == "POST":
+        try:
+            current_user.display_name = request.form.get("display_name", "").strip()
+            current_user.email = request.form.get("email", "").strip()
+            current_user.avatar_url = request.form.get("avatar_url", "").strip()
+            
+            db.session.commit()
+            flash("プロフィールを更新しました")
+        except Exception as e:
+            db.session.rollback()
+            flash(f"更新エラー: {str(e)}")
+        return redirect(url_for("settings"))
+        
+    return render_template("settings.html")
 
 @app.route("/logout")
 @login_required
