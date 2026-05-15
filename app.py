@@ -144,6 +144,47 @@ def login():
         flash("ログインに失敗しました")
     return render_template("login.html")
 
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    """新規ユーザー登録"""
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password")
+        confirm_password = request.form.get("confirm_password")
+
+        if not username or not password:
+            flash("ユーザー名とパスワードを入力してください")
+        elif password != confirm_password:
+            flash("パスワードが一致しません")
+        elif User.query.filter_by(username=username).first():
+            flash("このユーザー名は既に使用されています")
+        else:
+            try:
+                new_user = User(
+                    username=username,
+                    password=generate_password_hash(password),
+                    role='staff' # デフォルトはスタッフ
+                )
+                db.session.add(new_user)
+                db.session.commit()
+                flash("アカウントを作成しました。ログインしてください。")
+                return redirect(url_for("login"))
+            except Exception as e:
+                db.session.rollback()
+                flash(f"エラーが発生しました: {str(e)}")
+                
+    return render_template("register.html")
+
+@app.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    """パスワード再設定 (簡易版)"""
+    if request.method == "POST":
+        username = request.form.get("username")
+        # 実運用ではここでメール送信等を行いますが、今回はメッセージのみ
+        flash("パスワードのリセット手順を送信しました。管理者へお問い合わせください。")
+        return redirect(url_for("login"))
+    return render_template("forgot_password.html")
+
 @app.route("/logout")
 @login_required
 def logout():
