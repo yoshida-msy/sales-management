@@ -51,21 +51,24 @@
                 </ul>
             </nav>
             <div class="sidebar-footer">
-                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding: 0 8px;">
-                    <div style="width: 36px; height: 36px; border-radius: 10px; background: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.8rem; color: white;">
+                <div class="user-profile-area">
+                    <div class="avatar-box">
                         {{ current_user.username[0]|upper }}
                     </div>
-                    <div style="overflow: hidden;">
-                        <p style="font-size: 0.85rem; font-weight: 700; white-space: nowrap; text-overflow: ellipsis; color: white;">{{ current_user.username }}</p>
-                        <p style="font-size: 0.65rem; color: #71717a; text-transform: uppercase; font-weight: 800; letter-spacing: 0.05em;">{{ current_user.role }}</p>
+                    <div class="user-meta">
+                        <p class="user-name">{{ current_user.username }}</p>
+                        <p class="user-role">{{ current_user.role|upper }}</p>
                     </div>
                 </div>
-                <button id="theme-toggle" class="theme-toggle-btn">
-                    <i class="fa-solid fa-moon"></i> <span>ダークモード</span>
-                </button>
-                <a href="{{ url_for('logout') }}" style="text-decoration: none; color: #71717a; font-size: 0.8rem; font-weight: 700; display: flex; align-items: center; gap: 8px; padding: 12px 8px; transition: 0.2s;">
-                    <i class="fa-solid fa-arrow-right-from-bracket"></i> ログアウト
-                </a>
+
+                <div class="footer-actions">
+                    <button id="theme-toggle" class="theme-toggle-btn" title="Toggle Theme">
+                        <i class="fa-solid fa-moon"></i> <span>ダークモード</span>
+                    </button>
+                    <a href="{{ url_for('logout') }}" class="btn-logout-premium">
+                        <i class="fa-solid fa-arrow-right-from-bracket"></i> <span>ログアウト</span>
+                    </a>
+                </div>
             </div>
         </aside>
 
