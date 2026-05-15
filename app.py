@@ -136,9 +136,53 @@ def seed_db():
         db.session.rollback()
         logger.error(f"SEED ERROR: {str(e)}")
 
+# --- データベース自動移行 (Migration) ---
+
+def migrate_schema():
+    """
+    不足しているカラムを自動的に追加します (PostgreSQL/SQLite両対応)。
+    Render Free環境など、Shellが使えない環境での自動更新用です。
+    """
+    try:
+        from sqlalchemy import text
+        is_postgres = db.engine.url.drivername.startswith("postgresql")
+        
+        # 現在のusersテーブルのカラム一覧を取得
+        if is_postgres:
+            # PostgreSQL: information_schema を検索
+            check_sql = text("SELECT column_name FROM information_schema.columns WHERE table_name='users'")
+        else:
+            # SQLite: PRAGMA table_info を使用
+            check_sql = text("PRAGMA table_info(users)")
+            
+        result = db.session.execute(check_sql).fetchall()
+        existing_columns = [row[0] if is_postgres else row[1] for row in result]
+        
+        # 追加したいカラムのリスト (カラム名, 型)
+        new_columns = [
+            ("email", "VARCHAR(120)" if is_postgres else "TEXT"),
+            ("display_name", "VARCHAR(100)" if is_postgres else "TEXT"),
+            ("avatar_url", "VARCHAR(255)" if is_postgres else "TEXT"),
+            ("created_at", "TIMESTAMP" if is_postgres else "DATETIME")
+        ]
+        
+        for col_name, col_type in new_columns:
+            if col_name not in existing_columns:
+                logger.info(f"MIGRATION: Adding column {col_name} to users table.")
+                alter_sql = text(f"ALTER TABLE users ADD COLUMN {col_name} {col_type}")
+                db.session.execute(alter_sql)
+        
+        db.session.commit()
+        logger.info("MIGRATION: Schema update completed.")
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"MIGRATION ERROR: {str(e)}")
+
+# アプリ起動時に安全に実行
 with app.app_context():
-    db.create_all()
-    seed_db()
+    db.create_all()  # 新規テーブルの作成
+    migrate_schema() # 既存テーブルへのカラム追加
+    seed_db()        # 初期データの投入
 
 @app.cli.command("init-db")
 def init_db_command():
